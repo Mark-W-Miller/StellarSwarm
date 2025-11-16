@@ -1,4 +1,5 @@
 import { PerspectiveCamera, Vector3 } from "three";
+import { log } from "./log/logger";
 import type { Settings } from "../types";
 
 type PointerState = {
@@ -63,7 +64,8 @@ export class CameraController {
 
   update(delta: number) {
     const panDistance = this.settings.panSpeed * delta;
-    const forwardDistance = panDistance * 10;
+    const forwardMultiplier = this.keyState.has("Shift") ? 10 : 1;
+    const forwardDistance = panDistance * 10 * forwardMultiplier;
     const rotAmount = this.settings.rotationSpeed * delta;
     const forward = new Vector3();
     const right = new Vector3();
@@ -72,18 +74,36 @@ export class CameraController {
     forward.normalize();
     right.crossVectors(forward, new Vector3(0, 1, 0)).normalize().negate();
 
+    const shift = this.keyState.has("Shift");
+
     if (this.keyState.has("ArrowUp")) {
       this.target.addScaledVector(forward, forwardDistance);
+      log("CAMERA", shift ? "Move forward (boost)" : "Move forward", {
+        target: this.target.toArray()
+      });
     }
     if (this.keyState.has("ArrowDown")) {
       this.target.addScaledVector(forward, -forwardDistance);
+      log("CAMERA", shift ? "Move backward (boost)" : "Move backward", {
+        target: this.target.toArray()
+      });
     }
     const forwardHeld = this.keyState.has("ArrowUp") || this.keyState.has("ArrowDown");
     if (forwardHeld && this.keyState.has("ArrowLeft")) {
       this.yaw -= rotAmount;
+      log("CAMERA", "Turn left", { yaw: this.yaw });
     }
     if (forwardHeld && this.keyState.has("ArrowRight")) {
       this.yaw += rotAmount;
+      log("CAMERA", "Turn right", { yaw: this.yaw });
+    }
+    if (!forwardHeld && this.keyState.has("ArrowLeft")) {
+      this.yaw -= rotAmount;
+      log("CAMERA", "Rotate CCW in place", { yaw: this.yaw });
+    }
+    if (!forwardHeld && this.keyState.has("ArrowRight")) {
+      this.yaw += rotAmount;
+      log("CAMERA", "Rotate CW in place", { yaw: this.yaw });
     }
 
     this.clampToBounds();
@@ -92,6 +112,20 @@ export class CameraController {
 
   getTarget() {
     return this.target.clone();
+  }
+
+  setPosition(position: Vector3, target = new Vector3(0, 0, 0)) {
+    this.target.copy(target);
+    const offset = new Vector3().subVectors(position, target);
+    const radius = offset.length();
+    if (radius > 0) {
+      this.radius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, radius));
+      this.yaw = Math.atan2(offset.z, offset.x);
+      const ratio = offset.y / radius;
+      this.pitch = Math.asin(Math.max(-1, Math.min(1, ratio)));
+    }
+    this.clampToBounds();
+    this.updateCamera();
   }
 
   private handlePointerDown(event: PointerEvent) {
@@ -118,11 +152,13 @@ export class CameraController {
       right.crossVectors(forward, new Vector3(0, 1, 0)).normalize().negate();
       this.target.addScaledVector(right, panX);
       this.target.addScaledVector(forward, panZ);
+      log("CAMERA", "Mouse pan", { target: this.target.toArray() });
     } else {
       this.yaw += dx * this.settings.dragSensitivity;
       const minPitch = -Math.PI + 0.1;
       const maxPitch = Math.PI / 2 - 0.05;
       this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch + dy * this.settings.dragSensitivity));
+      log("CAMERA", "Orbit drag", { yaw: this.yaw, pitch: this.pitch });
     }
     this.clampToBounds();
     this.updateCamera();
@@ -139,18 +175,26 @@ export class CameraController {
     const radiusChange = delta * 10;
     this.radius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, this.radius + radiusChange));
     this.clampToBounds();
+    log("CAMERA", "Zoom", { radius: this.radius });
     this.updateCamera();
   }
 
   private handleKeyDown(event: KeyboardEvent) {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Shift"].includes(event.key)) {
       event.preventDefault();
-      this.keyState.add(event.key);
+      if (!this.keyState.has(event.key)) {
+        this.keyState.add(event.key);
+        if (event.key === "Shift") {
+          log("CAMERA", "Shift engaged");
+        }
+      }
     }
   }
 
   private handleKeyUp(event: KeyboardEvent) {
-    this.keyState.delete(event.key);
+    if (this.keyState.delete(event.key) && event.key === "Shift") {
+      log("CAMERA", "Shift released");
+    }
   }
 
   private clampToBounds() {

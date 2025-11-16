@@ -5,6 +5,7 @@ import {
   DirectionalLight,
   PerspectiveCamera,
   Scene,
+  Vector3,
   WebGLRenderer
 } from "three";
 import settings from "./settings.json";
@@ -13,6 +14,8 @@ import { createAxisAsset } from "./assets/axisAsset";
 import { createArenaModel } from "./model/arenaModel";
 import { CameraController } from "./ui/camera";
 import { GameSim } from "./engine/sim";
+import { LogOverlay } from "./ui/log/logOverlay";
+import { logStartup } from "./ui/log/logger";
 
 function requireElement<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
@@ -35,8 +38,19 @@ const scene = new Scene();
 const camera = new PerspectiveCamera(60, stage3d.clientWidth / stage3d.clientHeight, 0.1, 5000);
 const arenaModel = createArenaModel(settings.arena);
 const cameraController = new CameraController(camera, stage3d, settings.camera, arenaModel.half);
+// Place the camera toward the positive corner, looking at origin.
+cameraController.setPosition(
+  new Vector3(arenaModel.half.x * 0.8, arenaModel.half.y * 0.8, arenaModel.half.z * 0.8)
+);
 
 const sim = new GameSim();
+const logOverlay = new LogOverlay();
+const logToggle = document.createElement("button");
+logToggle.className = "log-toggle";
+logToggle.textContent = "Log";
+logToggle.addEventListener("click", () => logOverlay.toggle());
+document.body.appendChild(logToggle);
+logStartup();
 
 function setupScene() {
   const ambient = new AmbientLight(0xffffff, 0.5);
