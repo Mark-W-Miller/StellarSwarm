@@ -1,6 +1,6 @@
 # StellarSwarm (skeleton)
 
-This is a stripped-down starter: one full-page Three.js canvas with a 2D canvas layered on top for overlays. No UI chrome yet—just enough structure to build the new game from scratch.
+New TypeScript skeleton: one full-page Three.js canvas with a 2D overlay canvas. The arena is a voxel-style square with golden-ratio triangular walls, and a camera controller handles drag-rotate plus arrow-key panning. A small orange cross marks the view center.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open the printed local URL. You’ll see the 3D stage with a simple spinning cube and a 2D overlay crosshair.
+Open the printed local URL to see the arena, camera controls, and overlay crosshair.
 
 ## Build & preview
 
@@ -22,9 +22,19 @@ npm run preview
 
 ## Layout
 
-- `index.html` mounts a `#stage` container with a 3D div and a 2D canvas stacked over it.
-- `src/main.js` wires the canvases, sizes them to the viewport, and draws a placeholder overlay.
-- `src/ui/board3d.js` owns the Three.js scene/loop; currently a cube + grid to keep the pipeline live.
-- `src/style.css` forces the stage to fill the viewport and layer the canvases.
+- `index.html` mounts `#stage` with stacked 3D/2D canvases.
+- `src/main.ts` initializes Three.js, the camera controller, the arena asset, and the sim loop.
+- `src/camera.ts` handles drag rotation, scroll zoom, and arrow-key panning; exposes the view target.
+- `src/model/arenaModel.ts` holds the arena data for the game engine.
+- `src/assets/arenaAsset.ts` draws only the arena bounding box from the model.
+- `src/sim.ts` runs the tick loop.
+- `src/settings.json` holds constants (arena size, camera speeds/ranges).
+- `src/style.css` fills the viewport and layers canvases.
 
-Swap the cube for your own scene and draw whatever 2D HUD you need on `#stage-2d`.
+## Defaults
+
+- Arena size: 1000 × 1000 on the ground plane.
+- Camera: starts offset with drag-rotate, scroll zoom, and arrow-key pan.
+- Overlay: small orange cross at the view center target.
+
+Extend the sim loop and replace the arenaAsset with your actual game geometry as you build systems.

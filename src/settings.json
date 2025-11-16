@@ -1,0 +1,19 @@
+{
+  "arena": {
+    "size": { "width": 1000, "depth": 1000, "height": 500 },
+    "voxelSize": 10,
+    "wallHeight": 40,
+    "wallThickness": 6
+  },
+  "camera": {
+    "radius": 180,
+    "minRadius": 60,
+    "maxRadius": 320,
+    "rotationSpeed": 0.0075,
+    "panSpeed": 8,
+    "dragSensitivity": 0.004
+  },
+  "sim": {
+    "tickRate": 60
+  }
+}
