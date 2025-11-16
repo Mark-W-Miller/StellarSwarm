@@ -16,10 +16,16 @@ export class CameraController {
   private pitch: number;
   private radius: number;
   private settings: Settings["camera"];
-  private pointer: PointerState = { active: false, lastX: 0, lastY: 0 };
+  private bounds: Vector3;
+  private pointer: PointerState = { active: false, lastX: 0, lastY: 0, button: 0 };
   private keyState = new Set<string>();
 
-  constructor(camera: PerspectiveCamera, domElement: HTMLElement, settings: Settings["camera"]) {
+  constructor(
+    camera: PerspectiveCamera,
+    domElement: HTMLElement,
+    settings: Settings["camera"],
+    bounds: { x: number; y: number; z: number }
+  ) {
     this.camera = camera;
     this.domElement = domElement;
     this.settings = settings;
@@ -27,6 +33,7 @@ export class CameraController {
     this.yaw = -Math.PI / 4;
     this.pitch = -Math.PI / 8;
     this.radius = settings.radius;
+    this.bounds = new Vector3(bounds.x, bounds.y, bounds.z);
 
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -71,13 +78,15 @@ export class CameraController {
     if (this.keyState.has("ArrowDown")) {
       this.target.addScaledVector(forward, -forwardDistance);
     }
-    if (this.keyState.has("ArrowLeft")) {
-      this.yaw += rotAmount;
-    }
-    if (this.keyState.has("ArrowRight")) {
+    const forwardHeld = this.keyState.has("ArrowUp") || this.keyState.has("ArrowDown");
+    if (forwardHeld && this.keyState.has("ArrowLeft")) {
       this.yaw -= rotAmount;
     }
+    if (forwardHeld && this.keyState.has("ArrowRight")) {
+      this.yaw += rotAmount;
+    }
 
+    this.clampToBounds();
     this.updateCamera();
   }
 
@@ -115,6 +124,7 @@ export class CameraController {
       const maxPitch = Math.PI / 2 - 0.05;
       this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch + dy * this.settings.dragSensitivity));
     }
+    this.clampToBounds();
     this.updateCamera();
   }
 
@@ -128,6 +138,7 @@ export class CameraController {
     const delta = Math.sign(event.deltaY);
     const radiusChange = delta * 10;
     this.radius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, this.radius + radiusChange));
+    this.clampToBounds();
     this.updateCamera();
   }
 
@@ -140,6 +151,12 @@ export class CameraController {
 
   private handleKeyUp(event: KeyboardEvent) {
     this.keyState.delete(event.key);
+  }
+
+  private clampToBounds() {
+    this.target.x = Math.max(-this.bounds.x, Math.min(this.bounds.x, this.target.x));
+    this.target.y = Math.max(-this.bounds.y, Math.min(this.bounds.y, this.target.y));
+    this.target.z = Math.max(-this.bounds.z, Math.min(this.bounds.z, this.target.z));
   }
 
   private updateCamera() {

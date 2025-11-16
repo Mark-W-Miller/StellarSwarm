@@ -33,12 +33,12 @@ stage3d.appendChild(renderer.domElement);
 
 const scene = new Scene();
 const camera = new PerspectiveCamera(60, stage3d.clientWidth / stage3d.clientHeight, 0.1, 5000);
-const cameraController = new CameraController(camera, stage3d, settings.camera);
+const arenaModel = createArenaModel(settings.arena);
+const cameraController = new CameraController(camera, stage3d, settings.camera, arenaModel.half);
 
 const sim = new GameSim();
 
 function setupScene() {
-  const arenaModel = createArenaModel(settings.arena);
   const ambient = new AmbientLight(0xffffff, 0.5);
   const sun = new DirectionalLight(0xffffff, 0.8);
   sun.position.set(400, 600, 400);
