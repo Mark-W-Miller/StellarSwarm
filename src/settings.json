@@ -14,6 +14,7 @@
     "dragSensitivity": 0.004
   },
   "sim": {
-    "tickRate": 60
+    "tickRate": 60,
+    "maxTickRate": 360
   }
 }

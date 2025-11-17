@@ -7,6 +7,7 @@ type StarInstance = {
   model: StarModel;
   mesh: Mesh;
   selection?: Mesh;
+  subwarp?: LineSegments;
 };
 
 export class ArenaAsset {
@@ -15,6 +16,10 @@ export class ArenaAsset {
   private starAsset: StarAsset;
   private starMap = new Map<Mesh, StarModel>();
   private cornerMarkers: Mesh[] = [];
+  private subwarpScale = 4;
+  private subwarpSpokes = 12;
+  private spinRateFactor = 1;
+  private spinLookup = new Map<string, number>();
 
   constructor(private model: ArenaModel) {
     this.group = new Group();
@@ -31,14 +36,19 @@ export class ArenaAsset {
   addStar(star: StarModel) {
     const mesh = this.starAsset.createMesh(star);
     this.group.add(mesh);
-    this.stars.push({ model: star, mesh });
+    const subwarp = this.starAsset.createSubwarpGrid(star, this.subwarpScale, this.subwarpSpokes);
+    subwarp.position.set(star.position.x, star.position.y, star.position.z);
+    this.group.add(subwarp);
+    this.stars.push({ model: star, mesh, subwarp });
     this.starMap.set(mesh, star);
+    this.spinLookup.set(star.id, this.starAsset.getSpinSpeed(star));
   }
 
   resetStars(nextStars: StarModel[]) {
     this.stars.forEach((s) => {
       this.group.remove(s.mesh);
       if (s.selection) this.group.remove(s.selection);
+      if (s.subwarp) this.group.remove(s.subwarp);
     });
     this.stars = [];
     this.starMap.clear();
@@ -46,8 +56,13 @@ export class ArenaAsset {
   }
 
   tick() {
-    this.stars.forEach(({ model, mesh }) => {
+    this.stars.forEach(({ model, mesh, subwarp }) => {
       this.starAsset.tick(model, mesh);
+      if (subwarp) {
+        const baseSpeed = this.spinLookup.get(model.id) ?? this.starAsset.getSpinSpeed(model);
+        const speed = baseSpeed * this.spinRateFactor;
+        subwarp.rotation.y += speed;
+      }
     });
   }
 
@@ -69,6 +84,30 @@ export class ArenaAsset {
 
   getCornerMarkers() {
     return this.cornerMarkers.map((mesh) => ({ mesh, position: mesh.position.clone() }));
+  }
+
+  setSubwarpScale(scale: number) {
+    this.subwarpScale = scale;
+    this.refreshSubwarp();
+  }
+
+  setSubwarpSpokes(spokes: number) {
+    this.subwarpSpokes = Math.max(3, Math.floor(spokes));
+    this.refreshSubwarp();
+  }
+
+  setSpinRateFactor(factor: number) {
+    this.spinRateFactor = Math.max(0.1, factor);
+  }
+
+  private refreshSubwarp() {
+    this.stars.forEach((s) => {
+      if (s.subwarp) this.group.remove(s.subwarp);
+      const subwarp = this.starAsset.createSubwarpGrid(s.model, this.subwarpScale, this.subwarpSpokes);
+      subwarp.position.copy(s.mesh.position);
+      s.subwarp = subwarp;
+      this.group.add(subwarp);
+    });
   }
 
   private buildCornerMarkers() {

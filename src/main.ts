@@ -29,6 +29,10 @@ function rand() {
   return rngSeed / 0xffffffff;
 }
 
+function clamp(val: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, val));
+}
+
 function requireElement<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
   if (!el) {
@@ -67,26 +71,83 @@ document.body.appendChild(logToggle);
 
 const seedPanel = document.createElement("div");
 seedPanel.className = "seed-panel";
+seedPanel.style.display = "flex";
+
+const starsLabel = document.createElement("label");
+starsLabel.textContent = "Stars:";
 const seedInput = document.createElement("input");
 seedInput.type = "number";
 seedInput.min = "1";
 seedInput.value = `${initialStarCount}`;
+starsLabel.appendChild(seedInput);
+
+const gridLabel = document.createElement("label");
+gridLabel.textContent = "Grid scale:";
+const subwarpInput = document.createElement("input");
+subwarpInput.type = "number";
+subwarpInput.min = "0.5";
+subwarpInput.step = "0.5";
+subwarpInput.value = "4";
+gridLabel.appendChild(subwarpInput);
+
+const spokesLabel = document.createElement("label");
+spokesLabel.textContent = "Radial spokes:";
+const spokesInput = document.createElement("input");
+spokesInput.type = "number";
+spokesInput.min = "3";
+spokesInput.step = "1";
+spokesInput.value = "12";
+spokesLabel.appendChild(spokesInput);
+
+const simSpeedLabel = document.createElement("label");
+simSpeedLabel.textContent = "Sim speed (1-60):";
+const simSpeedInput = document.createElement("input");
+simSpeedInput.type = "number";
+simSpeedInput.min = "1";
+simSpeedInput.max = `${settings.sim.maxTickRate ?? 360}`;
+simSpeedInput.step = "1";
+simSpeedInput.value = `${settings.sim.tickRate}`;
+simSpeedLabel.appendChild(simSpeedInput);
+
 const seedButton = document.createElement("button");
 seedButton.textContent = "Regenerate";
 seedButton.addEventListener("click", () => {
   const count = Number(seedInput.value) || initialStarCount;
+  const subwarpScale = Number(subwarpInput.value) || 4;
+  const spokes = Number(spokesInput.value) || 12;
+  const simSpeed = clamp(Number(simSpeedInput.value) || settings.sim.tickRate, 1, settings.sim.maxTickRate ?? 360);
+  settings.sim.tickRate = simSpeed;
   regenerateStars(count);
+  arenaAsset.setSubwarpScale(subwarpScale);
+  arenaAsset.setSubwarpSpokes(spokes);
+  arenaAsset.setSpinRateFactor(simSpeed / 10);
 });
-seedPanel.append(seedInput, seedButton);
+
+subwarpInput.addEventListener("change", () => {
+  const subwarpScale = Number(subwarpInput.value) || 4;
+  arenaAsset.setSubwarpScale(subwarpScale);
+});
+
+spokesInput.addEventListener("change", () => {
+  const spokes = Number(spokesInput.value) || 12;
+  arenaAsset.setSubwarpSpokes(spokes);
+});
+
+simSpeedInput.addEventListener("change", () => {
+  const simSpeed = clamp(Number(simSpeedInput.value) || settings.sim.tickRate, 1, settings.sim.maxTickRate ?? 360);
+  settings.sim.tickRate = simSpeed;
+  arenaAsset.setSpinRateFactor(simSpeed / 10);
+});
+
+seedPanel.append(starsLabel, gridLabel, spokesLabel, simSpeedLabel, seedButton);
 document.body.appendChild(seedPanel);
 
 const seedToggle = document.createElement("button");
 seedToggle.className = "log-toggle";
 seedToggle.style.right = "60px";
-seedToggle.textContent = "Stars";
+seedToggle.textContent = "HUD";
 seedToggle.addEventListener("click", () => {
-  seedPanel.style.display = seedPanel.style.display === "flex" ? "none" : "flex";
-  seedPanel.style.display = seedPanel.style.display || "flex";
+  seedPanel.style.display = seedPanel.style.display === "none" ? "flex" : "none";
 });
 document.body.appendChild(seedToggle);
 logStartup();
@@ -201,7 +262,7 @@ function addHomeStar(arena: ArenaModel) {
       z: arena.half.z * 0.8
     },
     radius: 18,
-    color: "#9be7ff",
+    color: "#22c55e",
     brightness: 1,
     phase: rand() * Math.PI * 2
   };

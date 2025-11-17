@@ -1,4 +1,14 @@
-import { Color, CylinderGeometry, Mesh, MeshStandardMaterial, SphereGeometry } from "three";
+import {
+  BufferGeometry,
+  Color,
+  CylinderGeometry,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshStandardMaterial,
+  SphereGeometry,
+  Vector3
+} from "three";
 import type { StarModel } from "../model/starModel";
 
 export class StarAsset {
@@ -62,5 +72,58 @@ export class StarAsset {
     const geom = this.geometry.clone();
     geom.scale(8, 8, 8);
     return geom;
+  }
+
+  createSubwarpGrid(star: StarModel, scale: number, spokes = 12) {
+    const radiusX = star.radius * scale * 1.3;
+    const radiusZ = star.radius * scale * 0.7;
+    const height = star.radius * 0.4;
+    const step = Math.max(star.radius / 2, 1);
+    const points: Vector3[] = [];
+
+    const ringCount = Math.max(4, Math.floor((Math.max(radiusX, radiusZ) - step) / step));
+    for (let ri = 1; ri <= ringCount; ri += 1) {
+      const t = ri / ringCount;
+      const rx = step + (radiusX - step) * t;
+      const rz = step + (radiusZ - step) * t;
+      const circumference = Math.PI * (rx + rz);
+      const segments = Math.max(12, Math.floor(circumference / step));
+      for (let i = 0; i < segments; i += 1) {
+        const theta1 = (i / segments) * Math.PI * 2;
+        const theta2 = ((i + 1) / segments) * Math.PI * 2;
+        const y = star.radius * 0.2;
+        points.push(
+          new Vector3(rx * Math.cos(theta1), y, rz * Math.sin(theta1)),
+          new Vector3(rx * Math.cos(theta2), y, rz * Math.sin(theta2))
+        );
+      }
+    }
+
+    // Vertical spokes
+    for (let i = 0; i < spokes; i += 1) {
+      const theta = (i / spokes) * Math.PI * 2;
+      const x = radiusX * Math.cos(theta);
+      const z = radiusZ * Math.sin(theta);
+      points.push(new Vector3(x * 0.4, -height / 2, z * 0.4), new Vector3(x, height / 2, z));
+    }
+
+    const geom = new BufferGeometry().setFromPoints(points);
+    const mat = new LineBasicMaterial({
+      color: new Color(star.color),
+      opacity: 0.6,
+      transparent: true
+    });
+    // Hint thicker lines; may be constrained by platform.
+    (mat as any).linewidth = 2;
+    return new LineSegments(geom, mat);
+  }
+
+  getSpinSpeed(star: StarModel) {
+    if (star.id === "home-star") {
+      return (Math.PI * 2) / 60;
+    }
+    // Larger stars spin slower; sync by size
+    const base = (Math.PI * 2) / 60;
+    return base / Math.max(1, star.radius / 3);
   }
 }
