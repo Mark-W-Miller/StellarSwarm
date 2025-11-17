@@ -3,9 +3,21 @@ import type { StarModel } from "../model/starModel";
 
 export class StarAsset {
   private geometry: SphereGeometry;
+  private selectionGeometry: SphereGeometry;
+  private selectionMaterial: MeshStandardMaterial;
 
   constructor() {
     this.geometry = new SphereGeometry(1, 16, 16);
+    this.selectionGeometry = new SphereGeometry(1.4, 12, 12);
+    this.selectionMaterial = new MeshStandardMaterial({
+      color: new Color("#ffffff"),
+      emissive: new Color("#ffffff"),
+      emissiveIntensity: 0.3,
+      opacity: 0.35,
+      transparent: true,
+      roughness: 0.2,
+      metalness: 0
+    });
   }
 
   createMesh(star: StarModel) {
@@ -17,6 +29,13 @@ export class StarAsset {
       metalness: 0.05
     });
     const mesh = new Mesh(this.geometry.clone(), material);
+    mesh.scale.setScalar(star.radius);
+    mesh.position.set(star.position.x, star.position.y, star.position.z);
+    return mesh;
+  }
+
+  createSelectionMesh(star: StarModel) {
+    const mesh = new Mesh(this.selectionGeometry.clone(), this.selectionMaterial.clone());
     mesh.scale.setScalar(star.radius);
     mesh.position.set(star.position.x, star.position.y, star.position.z);
     return mesh;

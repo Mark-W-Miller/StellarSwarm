@@ -152,13 +152,13 @@ export class CameraController {
       right.crossVectors(forward, new Vector3(0, 1, 0)).normalize().negate();
       this.target.addScaledVector(right, panX);
       this.target.addScaledVector(forward, panZ);
-      log("CAMERA", "Mouse pan", { target: this.target.toArray() });
+      log("CAMERA_MOVE", "Mouse pan", { target: this.target.toArray() });
     } else {
       this.yaw += dx * this.settings.dragSensitivity;
       const minPitch = -Math.PI + 0.1;
       const maxPitch = Math.PI / 2 - 0.05;
       this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch + dy * this.settings.dragSensitivity));
-      log("CAMERA", "Orbit drag", { yaw: this.yaw, pitch: this.pitch });
+      log("CAMERA_MOVE", "Orbit drag", { yaw: this.yaw, pitch: this.pitch });
     }
     this.clampToBounds();
     this.updateCamera();

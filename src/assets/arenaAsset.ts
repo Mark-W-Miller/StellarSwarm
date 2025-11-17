@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Vector3 } from "three";
+import { BufferGeometry, Color, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from "three";
 import type { ArenaModel } from "../model/arenaModel";
 import type { StarModel } from "../model/starModel";
 import { StarAsset } from "./starAsset";
@@ -6,12 +6,14 @@ import { StarAsset } from "./starAsset";
 type StarInstance = {
   model: StarModel;
   mesh: Mesh;
+  selection?: Mesh;
 };
 
 export class ArenaAsset {
   group: Group;
   private stars: StarInstance[] = [];
   private starAsset: StarAsset;
+  private starMap = new Map<Mesh, StarModel>();
 
   constructor(private model: ArenaModel) {
     this.group = new Group();
@@ -28,12 +30,29 @@ export class ArenaAsset {
     const mesh = this.starAsset.createMesh(star);
     this.group.add(mesh);
     this.stars.push({ model: star, mesh });
+    this.starMap.set(mesh, star);
   }
 
   tick() {
     this.stars.forEach(({ model, mesh }) => {
       this.starAsset.tick(model, mesh);
     });
+  }
+
+  intersectStars(raycaster: Raycaster) {
+    const intersects = raycaster.intersectObjects(this.stars.map((s) => s.mesh), false);
+    return intersects.map((hit) => ({
+      mesh: hit.object as Mesh,
+      star: this.starMap.get(hit.object as Mesh)
+    }));
+  }
+
+  addSelection(starId: string) {
+    const target = this.stars.find((s) => s.model.id === starId);
+    if (!target || target.selection) return;
+    const selection = this.starAsset.createSelectionMesh(target.model);
+    target.selection = selection;
+    this.group.add(selection);
   }
 
   private buildBounds() {

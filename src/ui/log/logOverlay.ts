@@ -180,7 +180,7 @@ export class LogOverlay {
       }
       this.list.appendChild(line);
     });
-    this.list.scrollTop = this.list.scrollHeight;
+    this.list.scrollTop = this.list.scrollHeight + 50;
   }
 
   private copyLines() {

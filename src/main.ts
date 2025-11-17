@@ -18,6 +18,7 @@ import { GameSim } from "./engine/sim";
 import { LogOverlay } from "./ui/log/logOverlay";
 import { logStartup } from "./ui/log/logger";
 import type { StarModel } from "./model/starModel";
+import { SceneInteraction } from "./ui/sceneInteraction";
 
 function requireElement<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
@@ -56,6 +57,7 @@ document.body.appendChild(logToggle);
 logStartup();
 
 const arenaAsset = new ArenaAsset(arenaModel);
+const sceneInteraction = new SceneInteraction(stage3d, camera, arenaAsset);
 
 function setupScene() {
   const ambient = new AmbientLight(0xffffff, 0.5);
