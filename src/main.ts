@@ -9,13 +9,15 @@ import {
   WebGLRenderer
 } from "three";
 import settings from "./settings.json";
-import { createArenaAsset } from "./assets/arenaAsset";
+import { ArenaAsset } from "./assets/arenaAsset";
 import { createAxisAsset } from "./assets/axisAsset";
-import { createArenaModel } from "./model/arenaModel";
+import { createArenaModel, tickArenaModel } from "./model/arenaModel";
+import type { ArenaModel } from "./model/arenaModel";
 import { CameraController } from "./ui/camera";
 import { GameSim } from "./engine/sim";
 import { LogOverlay } from "./ui/log/logOverlay";
 import { logStartup } from "./ui/log/logger";
+import type { StarModel } from "./model/starModel";
 
 function requireElement<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
@@ -37,6 +39,7 @@ stage3d.appendChild(renderer.domElement);
 const scene = new Scene();
 const camera = new PerspectiveCamera(60, stage3d.clientWidth / stage3d.clientHeight, 0.1, 5000);
 const arenaModel = createArenaModel(settings.arena);
+addRandomStars(arenaModel, 100);
 const cameraController = new CameraController(camera, stage3d, settings.camera, arenaModel.half);
 // Place the camera toward the positive corner, looking at origin.
 cameraController.setPosition(
@@ -52,25 +55,31 @@ logToggle.addEventListener("click", () => logOverlay.toggle());
 document.body.appendChild(logToggle);
 logStartup();
 
+const arenaAsset = new ArenaAsset(arenaModel);
+
 function setupScene() {
   const ambient = new AmbientLight(0xffffff, 0.5);
   const sun = new DirectionalLight(0xffffff, 0.8);
   sun.position.set(400, 600, 400);
   scene.add(ambient, sun);
 
-  const arenaAsset = createArenaAsset(arenaModel);
-  scene.add(arenaAsset);
+  scene.add(arenaAsset.group);
 
   const axisAsset = createAxisAsset(arenaModel);
   scene.add(axisAsset);
 }
 
 function resize() {
-  const { clientWidth, clientHeight } = stage3d;
-  stage2d.width = clientWidth;
-  stage2d.height = clientHeight;
-  renderer.setSize(clientWidth, clientHeight);
-  camera.aspect = clientWidth / clientHeight;
+  const rect = stage3d.getBoundingClientRect();
+  const { width, height } = rect;
+  const dpr = window.devicePixelRatio || 1;
+  stage2d.width = width;
+  stage2d.height = height;
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(width, height, false);
+  renderer.domElement.style.width = `${width}px`;
+  renderer.domElement.style.height = `${height}px`;
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
 }
 
@@ -99,8 +108,19 @@ function start() {
   setupScene();
   resize();
   window.addEventListener("resize", resize);
+  const resizeObserver = new ResizeObserver(() => resize());
+  resizeObserver.observe(stage3d);
+
+  let tickAccumulator = 0;
 
   sim.onTick((dt) => {
+    tickAccumulator += dt * settings.sim.tickRate;
+    const ticks = Math.floor(tickAccumulator);
+    tickAccumulator -= ticks;
+    if (ticks > 0) {
+      tickArenaModel(arenaModel, ticks);
+      arenaAsset.tick();
+    }
     cameraController.update(dt);
     renderer.render(scene, camera);
     drawOverlay();
@@ -109,3 +129,23 @@ function start() {
 }
 
 start();
+
+function addRandomStars(arena: ArenaModel, count: number) {
+  const colors = ["#ffbf69", "#f97171", "#6ee7ff", "#a78bfa", "#fcd34d"];
+  for (let i = 0; i < count; i += 1) {
+    const radius = 1 + Math.random() * 12;
+    const pos = {
+      x: (Math.random() * 2 - 1) * (arena.half.x * 0.9),
+      y: (Math.random() * 2 - 1) * (arena.half.y * 0.9),
+      z: (Math.random() * 2 - 1) * (arena.half.z * 0.9)
+    };
+    const star: StarModel = {
+      id: `star-${i}-${Date.now()}`,
+      position: pos,
+      radius,
+      color: colors[i % colors.length],
+      phase: Math.random() * Math.PI * 2
+    };
+    arena.stars.push(star);
+  }
+}

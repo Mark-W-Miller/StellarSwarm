@@ -206,12 +206,22 @@ export function logStartup() {
   log("system", "StellarSwarm started", { camera: settings.camera, arena: settings.arena });
 }
 function formatValue(val: unknown): unknown {
-  if (typeof val === "number") return Number(val.toPrecision(2));
-  if (Array.isArray(val)) return val.map((v) => formatValue(v));
-  if (val && typeof val === "object") {
-    return Object.fromEntries(
-      Object.entries(val as Record<string, unknown>).map(([k, v]) => [k, formatValue(v)])
-    );
-  }
-  return val;
+  const seen = new WeakSet<object>();
+
+  const inner = (v: unknown, depth: number): unknown => {
+    if (typeof v === "number") return Number(v.toPrecision(2));
+    if (typeof v === "string" || typeof v === "boolean" || v === null || v === undefined) return v;
+    if (depth <= 0) return "[depth]";
+    if (Array.isArray(v)) return v.map((item) => inner(item, depth - 1));
+    if (v && typeof v === "object") {
+      const obj = v as Record<string, unknown>;
+      if (seen.has(obj)) return "[circular]";
+      seen.add(obj);
+      const entries = Object.entries(obj).map(([k, val]) => [k, inner(val, depth - 1)]);
+      return Object.fromEntries(entries);
+    }
+    return String(v);
+  };
+
+  return inner(val, 3);
 }

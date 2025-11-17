@@ -38,6 +38,12 @@ body {
   pointer-events: none;
 }
 
+#stage-3d > canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .log-toggle {
   position: fixed;
   top: 10px;

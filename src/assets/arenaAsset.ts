@@ -1,108 +1,138 @@
-import { BufferGeometry, Color, Group, LineBasicMaterial, LineSegments, Vector3 } from "three";
+import { BufferGeometry, Color, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Vector3 } from "three";
 import type { ArenaModel } from "../model/arenaModel";
+import type { StarModel } from "../model/starModel";
+import { StarAsset } from "./starAsset";
 
-export function createArenaAsset(model: ArenaModel) {
-  const group = new Group();
+type StarInstance = {
+  model: StarModel;
+  mesh: Mesh;
+};
 
-  // Bounding box, centered at origin.
-  const { half } = model;
-  const points = [
-    // base
-    new Vector3(-half.x, -model.height / 2, -half.z),
-    new Vector3(half.x, -model.height / 2, -half.z),
+export class ArenaAsset {
+  group: Group;
+  private stars: StarInstance[] = [];
+  private starAsset: StarAsset;
 
-    new Vector3(half.x, -model.height / 2, -half.z),
-    new Vector3(half.x, -model.height / 2, half.z),
+  constructor(private model: ArenaModel) {
+    this.group = new Group();
 
-    new Vector3(half.x, -model.height / 2, half.z),
-    new Vector3(-half.x, -model.height / 2, half.z),
+    this.starAsset = new StarAsset();
 
-    new Vector3(-half.x, -model.height / 2, half.z),
-    new Vector3(-half.x, -model.height / 2, -half.z),
-
-    // top
-    new Vector3(-half.x, model.height / 2, -half.z),
-    new Vector3(half.x, model.height / 2, -half.z),
-
-    new Vector3(half.x, model.height / 2, -half.z),
-    new Vector3(half.x, model.height / 2, half.z),
-
-    new Vector3(half.x, model.height / 2, half.z),
-    new Vector3(-half.x, model.height / 2, half.z),
-
-    new Vector3(-half.x, model.height / 2, half.z),
-    new Vector3(-half.x, model.height / 2, -half.z),
-
-    // verticals
-    new Vector3(-half.x, -model.height / 2, -half.z),
-    new Vector3(-half.x, model.height / 2, -half.z),
-
-    new Vector3(half.x, -model.height / 2, -half.z),
-    new Vector3(half.x, model.height / 2, -half.z),
-
-    new Vector3(half.x, -model.height / 2, half.z),
-    new Vector3(half.x, model.height / 2, half.z),
-
-    new Vector3(-half.x, -model.height / 2, half.z),
-    new Vector3(-half.x, model.height / 2, half.z)
-  ];
-
-  const geometry = new BufferGeometry().setFromPoints(points);
-  const material = new LineBasicMaterial({ color: new Color("#f5d000") });
-  const lines = new LineSegments(geometry, material);
-  group.add(lines);
-
-  // Grid lines on all faces, darker color.
-  const gridColor = new Color("#7a6400");
-  const gridGeomPoints: Vector3[] = [];
-
-  const linesX = Math.max(1, Math.floor(model.width / model.voxelSize / 10));
-  const linesY = Math.max(1, Math.floor(model.height / model.voxelSize / 10));
-  const linesZ = Math.max(1, Math.floor(model.depth / model.voxelSize / 10));
-  const stepX = model.width / linesX;
-  const stepY = model.height / linesY;
-  const stepZ = model.depth / linesZ;
-
-  // Front/back faces (parallel to XY, at Z +/- half.z).
-  for (let i = 1; i < linesX; i += 1) {
-    const x = -half.x + i * stepX;
-    gridGeomPoints.push(new Vector3(x, -half.y, half.z), new Vector3(x, half.y, half.z));
-    gridGeomPoints.push(new Vector3(x, -half.y, -half.z), new Vector3(x, half.y, -half.z));
-  }
-  for (let i = 1; i < linesY; i += 1) {
-    const y = -half.y + i * stepY;
-    gridGeomPoints.push(new Vector3(-half.x, y, half.z), new Vector3(half.x, y, half.z));
-    gridGeomPoints.push(new Vector3(-half.x, y, -half.z), new Vector3(half.x, y, -half.z));
+    this.buildBounds();
+    if (model.stars.length > 0) {
+      model.stars.forEach((star) => this.addStar(star));
+    }
   }
 
-  // Left/right faces (parallel to YZ, at X +/- half.x).
-  for (let i = 1; i < linesZ; i += 1) {
-    const z = -half.z + i * stepZ;
-    gridGeomPoints.push(new Vector3(-half.x, -half.y, z), new Vector3(-half.x, half.y, z));
-    gridGeomPoints.push(new Vector3(half.x, -half.y, z), new Vector3(half.x, half.y, z));
-  }
-  for (let i = 1; i < linesY; i += 1) {
-    const y = -half.y + i * stepY;
-    gridGeomPoints.push(new Vector3(-half.x, y, -half.z), new Vector3(-half.x, y, half.z));
-    gridGeomPoints.push(new Vector3(half.x, y, -half.z), new Vector3(half.x, y, half.z));
+  addStar(star: StarModel) {
+    const mesh = this.starAsset.createMesh(star);
+    this.group.add(mesh);
+    this.stars.push({ model: star, mesh });
   }
 
-  // Top/bottom faces (parallel to XZ, at Y +/- half.y).
-  for (let i = 1; i < linesX; i += 1) {
-    const x = -half.x + i * stepX;
-    gridGeomPoints.push(new Vector3(x, -half.y, -half.z), new Vector3(x, -half.y, half.z));
-    gridGeomPoints.push(new Vector3(x, half.y, -half.z), new Vector3(x, half.y, half.z));
-  }
-  for (let i = 1; i < linesZ; i += 1) {
-    const z = -half.z + i * stepZ;
-    gridGeomPoints.push(new Vector3(-half.x, -half.y, z), new Vector3(half.x, -half.y, z));
-    gridGeomPoints.push(new Vector3(-half.x, half.y, z), new Vector3(half.x, half.y, z));
+  tick() {
+    this.stars.forEach(({ model, mesh }) => {
+      this.starAsset.tick(model, mesh);
+    });
   }
 
-  const gridGeometry = new BufferGeometry().setFromPoints(gridGeomPoints);
-  const gridMaterial = new LineBasicMaterial({ color: gridColor });
-  const gridLines = new LineSegments(gridGeometry, gridMaterial);
-  group.add(gridLines);
+  private buildBounds() {
+    const { half, height, width, depth, voxelSize } = this.model;
 
-  return group;
+    // Bounding box lines.
+    const points = [
+      new Vector3(-half.x, -height / 2, -half.z),
+      new Vector3(half.x, -height / 2, -half.z),
+
+      new Vector3(half.x, -height / 2, -half.z),
+      new Vector3(half.x, -height / 2, half.z),
+
+      new Vector3(half.x, -height / 2, half.z),
+      new Vector3(-half.x, -height / 2, half.z),
+
+      new Vector3(-half.x, -height / 2, half.z),
+      new Vector3(-half.x, -height / 2, -half.z),
+
+      // top
+      new Vector3(-half.x, height / 2, -half.z),
+      new Vector3(half.x, height / 2, -half.z),
+
+      new Vector3(half.x, height / 2, -half.z),
+      new Vector3(half.x, height / 2, half.z),
+
+      new Vector3(half.x, height / 2, half.z),
+      new Vector3(-half.x, height / 2, half.z),
+
+      new Vector3(-half.x, height / 2, half.z),
+      new Vector3(-half.x, height / 2, -half.z),
+
+      // verticals
+      new Vector3(-half.x, -height / 2, -half.z),
+      new Vector3(-half.x, height / 2, -half.z),
+
+      new Vector3(half.x, -height / 2, -half.z),
+      new Vector3(half.x, height / 2, -half.z),
+
+      new Vector3(half.x, -height / 2, half.z),
+      new Vector3(half.x, height / 2, half.z),
+
+      new Vector3(-half.x, -height / 2, half.z),
+      new Vector3(-half.x, height / 2, half.z)
+    ];
+
+    const boxGeometry = new BufferGeometry().setFromPoints(points);
+    const boxMaterial = new LineBasicMaterial({ color: new Color("#f5d000") });
+    this.group.add(new LineSegments(boxGeometry, boxMaterial));
+
+    // Grid lines on faces.
+    const gridColor = new Color("#7a6400");
+    const gridGeomPoints: Vector3[] = [];
+
+    const linesX = Math.max(1, Math.floor(width / voxelSize / 10));
+    const linesY = Math.max(1, Math.floor(height / voxelSize / 10));
+    const linesZ = Math.max(1, Math.floor(depth / voxelSize / 10));
+    const stepX = width / linesX;
+    const stepY = height / linesY;
+    const stepZ = depth / linesZ;
+
+    // Front/back (XY planes at +/- z).
+    for (let i = 1; i < linesX; i += 1) {
+      const x = -half.x + i * stepX;
+      gridGeomPoints.push(new Vector3(x, -half.y, half.z), new Vector3(x, half.y, half.z));
+      gridGeomPoints.push(new Vector3(x, -half.y, -half.z), new Vector3(x, half.y, -half.z));
+    }
+    for (let i = 1; i < linesY; i += 1) {
+      const y = -half.y + i * stepY;
+      gridGeomPoints.push(new Vector3(-half.x, y, half.z), new Vector3(half.x, y, half.z));
+      gridGeomPoints.push(new Vector3(-half.x, y, -half.z), new Vector3(half.x, y, -half.z));
+    }
+
+    // Left/right (YZ planes at +/- x).
+    for (let i = 1; i < linesZ; i += 1) {
+      const z = -half.z + i * stepZ;
+      gridGeomPoints.push(new Vector3(-half.x, -half.y, z), new Vector3(-half.x, half.y, z));
+      gridGeomPoints.push(new Vector3(half.x, -half.y, z), new Vector3(half.x, half.y, z));
+    }
+    for (let i = 1; i < linesY; i += 1) {
+      const y = -half.y + i * stepY;
+      gridGeomPoints.push(new Vector3(-half.x, y, -half.z), new Vector3(-half.x, y, half.z));
+      gridGeomPoints.push(new Vector3(half.x, y, -half.z), new Vector3(half.x, y, half.z));
+    }
+
+    // Top/bottom (XZ planes at +/- y).
+    for (let i = 1; i < linesX; i += 1) {
+      const x = -half.x + i * stepX;
+      gridGeomPoints.push(new Vector3(x, -half.y, -half.z), new Vector3(x, -half.y, half.z));
+      gridGeomPoints.push(new Vector3(x, half.y, -half.z), new Vector3(x, half.y, half.z));
+    }
+    for (let i = 1; i < linesZ; i += 1) {
+      const z = -half.z + i * stepZ;
+      gridGeomPoints.push(new Vector3(-half.x, -half.y, z), new Vector3(half.x, -half.y, z));
+      gridGeomPoints.push(new Vector3(-half.x, half.y, z), new Vector3(half.x, half.y, z));
+    }
+
+    const gridGeometry = new BufferGeometry().setFromPoints(gridGeomPoints);
+    const gridMaterial = new LineBasicMaterial({ color: gridColor });
+    this.group.add(new LineSegments(gridGeometry, gridMaterial));
+  }
 }
