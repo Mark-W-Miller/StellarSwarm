@@ -8,7 +8,7 @@
   "camera": {
     "radius": 180,
     "minRadius": 60,
-    "maxRadius": 320,
+    "maxRadius": 2000,
     "rotationSpeed": 2.0,
     "panSpeed": 8,
     "dragSensitivity": 0.004

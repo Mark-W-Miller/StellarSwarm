@@ -1,4 +1,4 @@
-import { Camera, Raycaster, Vector2 } from "three";
+import { Camera, Mesh, Raycaster, Vector2, Vector3 } from "three";
 import { log } from "./log/logger";
 import type { ArenaAsset } from "../assets/arenaAsset";
 
@@ -12,6 +12,10 @@ export class SceneInteraction {
   private drag: DragState = { active: false };
   private currentDragOver: string | null = null;
   private selectionChain: string[] = [];
+  private contextMenu: HTMLDivElement;
+  private cornersByMesh = new Map<Mesh, Vector3>();
+  private lastCornerClick: { id: string | null; time: number } = { id: null, time: 0 };
+  private lastStarClick: { id: string | null; time: number } = { id: null, time: 0 };
 
   private consume(event: PointerEvent) {
     event.preventDefault();
@@ -22,21 +26,39 @@ export class SceneInteraction {
   constructor(
     private element: HTMLElement,
     private camera: Camera,
-    private arenaAsset: ArenaAsset
+    private arenaAsset: ArenaAsset,
+    private onCornerDoubleClick?: (pos: Vector3) => void
   ) {
     this.onPointerMove = this.onPointerMove.bind(this);
     this.onPointerDown = this.onPointerDown.bind(this);
     this.onPointerUp = this.onPointerUp.bind(this);
+    this.onContextMenu = this.onContextMenu.bind(this);
+    this.hideContextMenu = this.hideContextMenu.bind(this);
 
     this.element.addEventListener("pointermove", this.onPointerMove);
     this.element.addEventListener("pointerdown", this.onPointerDown);
     this.element.addEventListener("pointerup", this.onPointerUp);
+    this.element.addEventListener("contextmenu", this.onContextMenu);
+    document.addEventListener("pointerdown", this.hideContextMenu);
+
+    this.contextMenu = document.createElement("div");
+    this.contextMenu.className = "context-menu";
+    this.contextMenu.style.display = "none";
+    document.body.appendChild(this.contextMenu);
+
+    // Map corner meshes to positions for double-click reset.
+    arenaAsset.getCornerMarkers().forEach(({ mesh, position }) => {
+      this.cornersByMesh.set(mesh, position.clone());
+    });
   }
 
   dispose() {
     this.element.removeEventListener("pointermove", this.onPointerMove);
     this.element.removeEventListener("pointerdown", this.onPointerDown);
     this.element.removeEventListener("pointerup", this.onPointerUp);
+    this.element.removeEventListener("contextmenu", this.onContextMenu);
+    document.removeEventListener("pointerdown", this.hideContextMenu);
+    this.contextMenu.remove();
   }
 
   private setCursor(hit: boolean) {
@@ -71,10 +93,12 @@ export class SceneInteraction {
       return;
     }
 
-    if (hit && hit.star) {
+    if (hit?.star) {
       this.setCursor(true);
       log("M_EVENT_MOVE", "Hover star", { star: hit.star.id });
       this.consume(event);
+    } else if (hit?.mesh && this.cornersByMesh.has(hit.mesh as Mesh)) {
+      this.setCursor(true);
     } else {
       this.setCursor(false);
     }
@@ -83,20 +107,57 @@ export class SceneInteraction {
   private onPointerDown(event: PointerEvent) {
     this.updateRay(event);
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
+
+    if (hit?.mesh && hit.mesh instanceof Mesh && this.cornersByMesh.has(hit.mesh)) {
+      const pos = this.cornersByMesh.get(hit.mesh);
+      const now = performance.now();
+      log("M_EVENT_CLICK", "Corner candidate", {
+        position: pos?.toArray(),
+        meshId: hit.mesh.uuid,
+        detail: event.detail
+      });
+      if (this.lastCornerClick.id === hit.mesh.uuid && now - this.lastCornerClick.time < 350 && pos) {
+        log("CAMERA_MOVE", "Corner double-click (timer)", { position: pos.toArray() });
+        this.consume(event);
+        this.onCornerDoubleClick?.(pos);
+        this.lastCornerClick = { id: null, time: 0 };
+        return;
+      }
+      this.lastCornerClick = { id: hit.mesh.uuid, time: now };
+    } else {
+      this.lastCornerClick = { id: null, time: 0 };
+    }
+
     if (hit && hit.star) {
       this.drag = { active: true, starId: hit.star.id, wasDrag: false };
       this.currentDragOver = hit.star.id;
       this.selectionChain.push(hit.star.id);
       this.arenaAsset.addSelection(hit.star.id);
+      const now = performance.now();
       log("M_EVENT_CLICK", "Star pointerdown", { star: hit.star.id, button: event.button });
+      if (this.lastStarClick.id === hit.star.id && now - this.lastStarClick.time < 350) {
+        log("M_EVENT_CLICK", "Star double-click", { star: hit.star.id });
+      }
+      this.lastStarClick = { id: hit.star.id, time: now };
       this.setCursor(true);
       this.consume(event);
     } else {
+      this.lastStarClick = { id: null, time: 0 };
       if (this.selectionChain.length > 0) {
         log("M_EVENT_CLICK", "Selection chain ended", { chain: this.selectionChain });
         this.selectionChain = [];
       }
       this.setCursor(false);
+    }
+
+    if (hit?.mesh && hit.mesh instanceof Mesh && this.cornersByMesh.has(hit.mesh)) {
+      const pos = this.cornersByMesh.get(hit.mesh);
+      log("M_EVENT_CLICK", "Corner click", { position: pos?.toArray(), meshId: hit.mesh.uuid, detail: event.detail });
+      if (event.detail === 2 && pos) {
+        log("M_EVENT_CLICK", "Corner double-click", { position: pos.toArray() });
+        this.consume(event);
+        this.onCornerDoubleClick?.(pos);
+      }
     }
   }
 
@@ -111,5 +172,35 @@ export class SceneInteraction {
     });
     this.setCursor(false);
     this.consume(event);
+  }
+
+  private onContextMenu(event: PointerEvent) {
+    this.updateRay(event);
+    const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
+    if (hit && hit.star) {
+      this.consume(event);
+      this.showContextMenu(event.clientX, event.clientY, hit.star.id);
+      log("M_EVENT_CLICK", "Star context menu", { star: hit.star.id });
+    }
+  }
+
+  private showContextMenu(x: number, y: number, starId: string) {
+    this.contextMenu.innerHTML = "";
+    const item = document.createElement("button");
+    item.type = "button";
+    item.textContent = `Action on ${starId}`;
+    item.className = "context-menu__item";
+    item.addEventListener("click", () => {
+      log("M_EVENT_CLICK", "Context action", { star: starId });
+      this.hideContextMenu();
+    });
+    this.contextMenu.appendChild(item);
+    this.contextMenu.style.left = `${x}px`;
+    this.contextMenu.style.top = `${y}px`;
+    this.contextMenu.style.display = "block";
+  }
+
+  private hideContextMenu() {
+    this.contextMenu.style.display = "none";
   }
 }

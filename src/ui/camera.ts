@@ -173,7 +173,21 @@ export class CameraController {
     event.preventDefault();
     const delta = Math.sign(event.deltaY);
     const radiusChange = delta * 10;
-    this.radius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, this.radius + radiusChange));
+    let proposed = this.radius + radiusChange;
+    if (proposed < this.settings.minRadius) {
+      // Move target forward along view direction instead of flipping.
+      const forward = new Vector3();
+      this.camera.getWorldDirection(forward);
+      forward.normalize().multiplyScalar(this.settings.minRadius * 0.5);
+      this.target.add(forward);
+      this.radius = this.settings.minRadius;
+      log("CAMERA_MOVE", "Zoom push-forward", {
+        radius: this.radius,
+        target: this.target.toArray()
+      });
+    } else {
+      this.radius = Math.min(this.settings.maxRadius, proposed);
+    }
     this.clampToBounds();
     log("CAMERA", "Zoom", { radius: this.radius });
     this.updateCamera();

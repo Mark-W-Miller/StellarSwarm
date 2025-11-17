@@ -14,6 +14,7 @@ export class ArenaAsset {
   private stars: StarInstance[] = [];
   private starAsset: StarAsset;
   private starMap = new Map<Mesh, StarModel>();
+  private cornerMarkers: Mesh[] = [];
 
   constructor(private model: ArenaModel) {
     this.group = new Group();
@@ -21,6 +22,7 @@ export class ArenaAsset {
     this.starAsset = new StarAsset();
 
     this.buildBounds();
+    this.buildCornerMarkers();
     if (model.stars.length > 0) {
       model.stars.forEach((star) => this.addStar(star));
     }
@@ -33,6 +35,16 @@ export class ArenaAsset {
     this.starMap.set(mesh, star);
   }
 
+  resetStars(nextStars: StarModel[]) {
+    this.stars.forEach((s) => {
+      this.group.remove(s.mesh);
+      if (s.selection) this.group.remove(s.selection);
+    });
+    this.stars = [];
+    this.starMap.clear();
+    nextStars.forEach((star) => this.addStar(star));
+  }
+
   tick() {
     this.stars.forEach(({ model, mesh }) => {
       this.starAsset.tick(model, mesh);
@@ -40,7 +52,7 @@ export class ArenaAsset {
   }
 
   intersectStars(raycaster: Raycaster) {
-    const intersects = raycaster.intersectObjects(this.stars.map((s) => s.mesh), false);
+    const intersects = raycaster.intersectObjects([...this.stars.map((s) => s.mesh), ...this.cornerMarkers], false);
     return intersects.map((hit) => ({
       mesh: hit.object as Mesh,
       star: this.starMap.get(hit.object as Mesh)
@@ -53,6 +65,35 @@ export class ArenaAsset {
     const selection = this.starAsset.createSelectionMesh(target.model);
     target.selection = selection;
     this.group.add(selection);
+  }
+
+  getCornerMarkers() {
+    return this.cornerMarkers.map((mesh) => ({ mesh, position: mesh.position.clone() }));
+  }
+
+  private buildCornerMarkers() {
+    const markerGeom = this.starAsset.createCornerMarkerGeometry();
+    const markerMat = new MeshStandardMaterial({
+      color: new Color("#ff3b30"),
+      emissive: new Color("#ff3b30"),
+      emissiveIntensity: 0.5
+    });
+    const corners: Vector3[] = [
+      new Vector3(this.model.half.x, this.model.half.y, this.model.half.z),
+      new Vector3(this.model.half.x, this.model.half.y, -this.model.half.z),
+      new Vector3(this.model.half.x, -this.model.half.y, this.model.half.z),
+      new Vector3(this.model.half.x, -this.model.half.y, -this.model.half.z),
+      new Vector3(-this.model.half.x, this.model.half.y, this.model.half.z),
+      new Vector3(-this.model.half.x, this.model.half.y, -this.model.half.z),
+      new Vector3(-this.model.half.x, -this.model.half.y, this.model.half.z),
+      new Vector3(-this.model.half.x, -this.model.half.y, -this.model.half.z)
+    ];
+    corners.forEach((pos) => {
+      const mesh = new Mesh(markerGeom.clone(), markerMat.clone());
+      mesh.position.copy(pos);
+      this.group.add(mesh);
+      this.cornerMarkers.push(mesh);
+    });
   }
 
   private buildBounds() {
