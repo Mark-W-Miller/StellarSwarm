@@ -220,6 +220,7 @@ export class CameraController {
       event.target instanceof HTMLElement &&
       event.target.closest(".log-toggle, .log-overlay, .seed-panel, .star-info, .star-info-toggle")
     ) {
+      this.pointer.active = false;
       return;
     }
     this.pointer.active = false;

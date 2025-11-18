@@ -185,10 +185,33 @@ export function populateArenaModel(arena: ArenaModel, starCount: number, subwarp
   addRandomStars(arena, starCount, subwarpScale, 2);
   log(
     "ARENA_INIT",
-    "Arena stars generated",
-    {
-      count: arena.stars.length,
-      stars: arena.stars.map((s) => ({ id: s.id, pos: s.position, radius: s.radius, color: s.color }))
-    }
+    JSON.stringify(
+      {
+        count: arena.stars.length,
+        stars: arena.stars.map((s) => ({
+          id: s.id,
+          pos: {
+            x: Number(s.position.x.toFixed(2)),
+            y: Number(s.position.y.toFixed(2)),
+            z: Number(s.position.z.toFixed(2))
+          },
+          radius: Number(s.radius.toFixed(2)),
+          color: s.color,
+          orbits: s.orbits?.map((o) => ({
+            radius: Number(o.radius.toFixed(2)),
+            hasPlanet: o.hasPlanet,
+            planet: o.planet
+              ? {
+                  id: o.planet.id,
+                  color: o.planet.color,
+                  radius: Number(o.planet.radius.toFixed(2))
+                }
+              : null
+          }))
+        }))
+      },
+      null,
+      2
+    )
   );
 }

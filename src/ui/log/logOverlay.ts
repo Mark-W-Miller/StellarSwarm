@@ -129,9 +129,8 @@ export class LogOverlay {
         input.checked = selected === null || selected.has(cls);
       }
 
-      input.addEventListener("change", (ev) => {
-        ev.stopPropagation();
-        ev.preventDefault();
+      const handleToggle = () => {
+        logger.log("UI", "Log filter toggled", { cls: cls ?? "All", checked: input.checked });
         const current = logger.getState();
         const currentSelected = current.selectedClasses ? new Set(current.selectedClasses) : null;
         if (!cls) {
@@ -149,6 +148,17 @@ export class LogOverlay {
         } else {
           logger.setSelectedClasses(Array.from(next));
         }
+      };
+
+      input.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+      input.addEventListener("pointerup", (ev) => ev.stopPropagation());
+      input.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        handleToggle();
+      });
+      input.addEventListener("change", (ev) => {
+        ev.stopPropagation();
+        handleToggle();
       });
 
       const span = document.createElement("span");

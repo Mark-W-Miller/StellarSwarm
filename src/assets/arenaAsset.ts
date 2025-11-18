@@ -3,13 +3,14 @@ import type { ArenaModel } from "../model/arenaModel";
 import type { StarModel } from "../model/starModel";
 import { HOME_STAR_ID } from "../model/starModel";
 import { StarAsset } from "./starAsset";
+import { log } from "../ui/log/logger";
 
 type StarInstance = {
   model: StarModel;
   mesh: Mesh;
   systemSpeed: number;
   selection?: Mesh;
-  subwarp?: LineSegments;
+  subwarp?: Group;
   planets?: {
     orbitRadius: number;
     mesh: Mesh;
@@ -52,9 +53,26 @@ export class ArenaAsset {
     const systemSpeed = (Math.PI * 2 * (Math.random() > 0.5 ? 1 : -1)) / (60 * 10);
     mesh.rotation.y = initialRot;
     this.group.add(mesh);
-    const orbitColors =
-      star.orbits?.map((o) => (o.planet ? o.planet.color : star.color)) ?? undefined;
-    const subwarp = this.starAsset.createSubwarpGrid(star, this.subwarpScale, this.subwarpSpokes, orbitColors);
+    log("ARENA_ASSET_INIT", JSON.stringify({
+      id: star.id,
+      pos: star.position,
+      radius: star.radius,
+      color: star.color,
+      orbits: star.orbits?.map((o) => ({
+        radius: o.radius,
+        hasPlanet: o.hasPlanet,
+        planet: o.planet ? { id: o.planet.id, color: o.planet.color, radius: o.planet.radius } : null
+      }))
+    }, null, 2));
+    const orbitColors = star.orbits?.map((o) => (o.planet ? o.planet.color : star.color)) ?? undefined;
+    const orbitRadii = star.orbits?.map((o) => o.radius);
+    const subwarp = this.starAsset.createSubwarpGrid(
+      star,
+      this.subwarpScale,
+      this.subwarpSpokes,
+      orbitColors,
+      orbitRadii
+    );
     subwarp.rotation.y = initialRot;
     subwarp.position.set(star.position.x, star.position.y, star.position.z);
     this.group.add(subwarp);
@@ -161,7 +179,14 @@ export class ArenaAsset {
       if (s.subwarp) this.group.remove(s.subwarp);
       s.planets?.forEach((p) => this.group.remove(p.group));
       const orbitColors = s.model.orbits?.map((o) => (o.planet ? o.planet.color : s.model.color));
-      const subwarp = this.starAsset.createSubwarpGrid(s.model, this.subwarpScale, this.subwarpSpokes, orbitColors);
+      const orbitRadii = s.model.orbits?.map((o) => o.radius);
+      const subwarp = this.starAsset.createSubwarpGrid(
+        s.model,
+        this.subwarpScale,
+        this.subwarpSpokes,
+        orbitColors,
+        orbitRadii
+      );
       subwarp.position.copy(s.mesh.position);
       s.subwarp = subwarp;
       s.planets = this.buildPlanets(s.model);
