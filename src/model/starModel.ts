@@ -15,3 +15,5 @@ export type PlanetModel = {
   angle: number;
   angularSpeed: number;
 };
+
+export const HOME_STAR_ID = "S-1";

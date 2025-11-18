@@ -1,6 +1,7 @@
-import { BufferGeometry, Camera, Color, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from "three";
+import { BufferGeometry, Camera, Color, EdgesGeometry, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from "three";
 import type { ArenaModel } from "../model/arenaModel";
 import type { StarModel } from "../model/starModel";
+import { HOME_STAR_ID } from "../model/starModel";
 import { StarAsset } from "./starAsset";
 
 type StarInstance = {
@@ -78,7 +79,7 @@ export class ArenaAsset {
       if (planets && planets.length > 0) {
         planets.forEach((p) => {
           // Planet orbits advance at a steady rate; then inherit the system (star) rotation.
-          p.angle = (p.angle + Math.abs(p.angularSpeed)) % (Math.PI * 2);
+          p.angle = (p.angle + p.angularSpeed) % (Math.PI * 2);
           const x = p.majorAxis * Math.cos(p.angle);
           const z = p.minorAxis * Math.sin(p.angle);
           const pos = new Vector3(x, 0, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
@@ -178,7 +179,7 @@ export class ArenaAsset {
         star.position.y * star.position.y +
         star.position.z * star.position.z
     );
-    const allowPlanets = dist <= halfBounds || star.id === "home-star";
+    const allowPlanets = dist <= halfBounds || star.id === HOME_STAR_ID;
     if (!star.orbits) return planets;
     star.orbits.forEach((orbit, idx) => {
       if (!orbit.hasPlanet || !orbit.planet || !allowPlanets) return;
@@ -207,10 +208,13 @@ export class ArenaAsset {
   private buildCornerMarkers() {
     const markerGeom = this.starAsset.createCornerMarkerGeometry();
     const markerMat = new MeshStandardMaterial({
-      color: new Color("#ff3b30"),
-      emissive: new Color("#ff3b30"),
-      emissiveIntensity: 0.5
+      color: new Color("#ffffff"),
+      emissive: new Color("#ffffff"),
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.25
     });
+    const wireMat = new LineBasicMaterial({ color: new Color("#ff3b30") });
     const corners: Vector3[] = [
       new Vector3(this.model.half.x, this.model.half.y, this.model.half.z),
       new Vector3(this.model.half.x, this.model.half.y, -this.model.half.z),
@@ -222,9 +226,12 @@ export class ArenaAsset {
       new Vector3(-this.model.half.x, -this.model.half.y, -this.model.half.z)
     ];
     corners.forEach((pos) => {
-      const mesh = new Mesh(markerGeom.clone(), markerMat.clone());
+      const geom = markerGeom.clone();
+      const mesh = new Mesh(geom, markerMat.clone());
       mesh.position.copy(pos);
-      this.group.add(mesh);
+      const wire = new LineSegments(new EdgesGeometry(geom), wireMat.clone());
+      wire.position.copy(pos);
+      this.group.add(mesh, wire);
       this.cornerMarkers.push(mesh);
     });
   }

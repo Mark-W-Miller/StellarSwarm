@@ -11,6 +11,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { PlanetModel, StarModel } from "../model/starModel";
+import { HOME_STAR_ID } from "../model/starModel";
 
 export class StarAsset {
   private geometry: SphereGeometry;
@@ -39,7 +40,7 @@ export class StarAsset {
     });
     const mesh = new Mesh(this.createGeometryForStar(star), material);
     mesh.position.set(star.position.x, star.position.y, star.position.z);
-    if (star.id === "home-star") {
+    if (star.id === HOME_STAR_ID) {
       const edges = new EdgesGeometry(mesh.geometry);
       const wire = new LineSegments(
         edges,
@@ -52,7 +53,7 @@ export class StarAsset {
 
   createSelectionMesh(star: StarModel, subwarpScale: number) {
     let geom: BufferGeometry;
-    if (star.id === "home-star") {
+    if (star.id === HOME_STAR_ID) {
       // Use the same clustered shape as the home star, slightly inflated.
       geom = this.createHomeClusterGeometry(star.radius * 1.1);
     } else {
@@ -81,7 +82,7 @@ export class StarAsset {
   }
 
   private createGeometryForStar(star: StarModel) {
-    if (star.id === "home-star") {
+    if (star.id === HOME_STAR_ID) {
       return this.createHomeClusterGeometry(star.radius);
     }
     const geom = this.geometry.clone();
@@ -98,7 +99,7 @@ export class StarAsset {
   createSubwarpGrid(star: StarModel, scale: number, spokes = 12) {
     const radiusX = star.radius * scale * 1.3;
     const radiusZ = star.radius * scale * 0.7;
-    const height = star.radius * 0.4;
+    const planeY = star.radius * 0.2;
     const step = Math.max(star.radius / 2, 1);
     const points: Vector3[] = [];
 
@@ -112,7 +113,7 @@ export class StarAsset {
       for (let i = 0; i < segments; i += 1) {
         const theta1 = (i / segments) * Math.PI * 2;
         const theta2 = ((i + 1) / segments) * Math.PI * 2;
-        const y = star.radius * 0.2;
+        const y = planeY;
         points.push(
           new Vector3(rx * Math.cos(theta1), y, rz * Math.sin(theta1)),
           new Vector3(rx * Math.cos(theta2), y, rz * Math.sin(theta2))
@@ -120,12 +121,12 @@ export class StarAsset {
       }
     }
 
-    // Vertical spokes
+    // Radial spokes on the same orbital plane
     for (let i = 0; i < spokes; i += 1) {
       const theta = (i / spokes) * Math.PI * 2;
       const x = radiusX * Math.cos(theta);
       const z = radiusZ * Math.sin(theta);
-      points.push(new Vector3(x * 0.4, -height / 2, z * 0.4), new Vector3(x, height / 2, z));
+      points.push(new Vector3(0, planeY, 0), new Vector3(x, planeY, z));
     }
 
     const geom = new BufferGeometry().setFromPoints(points);
@@ -140,7 +141,7 @@ export class StarAsset {
   }
 
   getSpinSpeed(star: StarModel) {
-    if (star.id === "home-star") {
+    if (star.id === HOME_STAR_ID) {
       return (Math.PI * 2) / 60;
     }
     // Larger stars spin slower; sync by size
