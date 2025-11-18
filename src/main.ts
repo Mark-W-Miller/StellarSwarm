@@ -76,8 +76,7 @@ const arenaModel = createArenaModel(settings.arena);
 seedRand(Date.now());
 const initialStarCount = 100;
 addHomeStar(arenaModel);
-const initialSubwarpScale = readSetting("hud:grid", 4);
-addRandomStars(arenaModel, initialStarCount, initialSubwarpScale);
+addRandomStars(arenaModel, initialStarCount);
 const arenaAsset = new ArenaAsset(arenaModel, camera);
 const cameraController = new CameraController(
   camera,
@@ -164,7 +163,7 @@ seedButton.addEventListener("click", () => {
   persistSetting("hud:simspeed", simSpeed);
   persistSetting("hud:atten", attenuation);
   settings.sim.tickRate = simSpeed;
-  regenerateStars(count, subwarpScale);
+  regenerateStars(count);
   arenaAsset.setSubwarpScale(subwarpScale);
   arenaAsset.setSubwarpSpokes(spokes);
   arenaAsset.setSpinRate(simSpeed, simSpeedMax);
@@ -309,42 +308,17 @@ function start() {
 
 start();
 
-function systemFootprint(radius: number, subwarpScale: number) {
-  const largestOrbit = radius * (1.5 + 6 * 0.8);
-  const majorAxis = largestOrbit * 0.8;
-  const subwarp = radius * subwarpScale * 1.3;
-  const planetMax = 1.5;
-  const buffer = 5;
-  return Math.max(majorAxis, subwarp) + planetMax + buffer;
-}
-
-function addRandomStars(arena: ArenaModel, count: number, subwarpScale: number) {
+function addRandomStars(arena: ArenaModel, count: number) {
   const colors = ["#808080", "#f94144", "#f3722c", "#f9c74f", "#90be6d", "#577590", "#8d6cff", "#2dd4bf"];
   const radii = [1, 3, 5, 7];
   const weights = [0.3, 0.25, 0.15, 0.05];
-  const existing: { pos: Vector3; footprint: number }[] = arena.stars.map((s) => ({
-    pos: new Vector3(s.position.x, s.position.y, s.position.z),
-    footprint: systemFootprint(s.radius, subwarpScale)
-  }));
   for (let i = 0; i < count; i += 1) {
     const radius = pickWeighted(radii, weights);
-    const footprint = systemFootprint(radius, subwarpScale);
-    let pos: { x: number; y: number; z: number } | null = null;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const candidate = {
-        x: (rand() * 2 - 1) * (arena.half.x * 0.9),
-        y: (rand() * 2 - 1) * (arena.half.y * 0.9),
-        z: (rand() * 2 - 1) * (arena.half.z * 0.9)
-      };
-      const cVec = new Vector3(candidate.x, candidate.y, candidate.z);
-      const tooClose = existing.some((e) => cVec.distanceTo(e.pos) < e.footprint + footprint);
-      if (!tooClose) {
-        pos = candidate;
-        existing.push({ pos: cVec, footprint });
-        break;
-      }
-    }
-    if (!pos) continue;
+    const pos = {
+      x: (rand() * 2 - 1) * (arena.half.x * 0.9),
+      y: (rand() * 2 - 1) * (arena.half.y * 0.9),
+      z: (rand() * 2 - 1) * (arena.half.z * 0.9)
+    };
     const color = colors[i % colors.length];
     const isGrey = color === "#808080";
     const star: StarModel = {
@@ -423,10 +397,10 @@ function createPlanet(idx: number) {
   };
 }
 
-function regenerateStars(count: number, subwarpScale: number) {
+function regenerateStars(count: number) {
   seedRand(Date.now());
   arenaModel.stars = [];
   addHomeStar(arenaModel);
-  addRandomStars(arenaModel, count, subwarpScale);
+  addRandomStars(arenaModel, count);
   arenaAsset.resetStars(arenaModel.stars);
 }
