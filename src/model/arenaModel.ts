@@ -1,6 +1,8 @@
 import type { Settings } from "../types";
 
 import type { StarModel } from "./starModel";
+import { HOME_STAR_ID } from "./starModel";
+import { log } from "../ui/log/logger";
 
 export type ArenaModel = {
   width: number;
@@ -10,6 +12,15 @@ export type ArenaModel = {
   half: { x: number; y: number; z: number };
   stars: StarModel[];
 };
+
+let rngSeed = Date.now();
+function seedRand(seed: number) {
+  rngSeed = seed >>> 0;
+}
+function rand() {
+  rngSeed = (1664525 * rngSeed + 1013904223) >>> 0;
+  return rngSeed / 0xffffffff;
+}
 
 export function tickArenaModel(arena: ArenaModel, ticks: number) {
   if (ticks <= 0) return;
@@ -35,4 +46,149 @@ export function createArenaModel(settings: Settings["arena"]): ArenaModel {
     },
     stars: []
   };
+}
+
+function pickWeighted<T>(values: T[], weights: number[]) {
+  const total = weights.reduce((a, b) => a + b, 0);
+  const r = rand() * total;
+  let acc = 0;
+  for (let i = 0; i < values.length; i += 1) {
+    acc += weights[i];
+    if (r <= acc) return values[i];
+  }
+  return values[values.length - 1];
+}
+
+function buildOrbits(starRadius: number, allowPlanets: boolean, forcePlanetAll = false) {
+  const orbits = [];
+  const maxOrbits = 6;
+  for (let i = 1; i <= maxOrbits; i += 1) {
+    const r = starRadius * (1.5 + i * 0.8);
+    const hasPlanet = allowPlanets ? forcePlanetAll || rand() > 0.4 : false;
+    orbits.push({ radius: r, hasPlanet });
+  }
+  return orbits;
+}
+
+function createPlanet(starNumber: number, orbitIdx: number) {
+  const planetColors = ["#60a5fa", "#fbbf24", "#34d399", "#c084fc", "#f472b6", "#f97316"];
+  // Outer planets larger.
+  const baseRadius = 0.3 + (orbitIdx - 1) * 0.2;
+  const radius = baseRadius + rand() * 0.2;
+  const baseSpeed = 0.01 + rand() * 0.02;
+  const dir = rand() > 0.5 ? 1 : -1;
+  return {
+    id: `P-${starNumber}-${orbitIdx}`,
+    radius,
+    color: planetColors[(orbitIdx - 1) % planetColors.length],
+    angle: rand() * Math.PI * 2,
+    angularSpeed: baseSpeed * dir
+  };
+}
+
+function systemFootprint(radius: number, subwarpScale: number) {
+  const largestOrbit = radius * (1.5 + 6 * 0.8);
+  const majorAxis = largestOrbit * 0.8;
+  const subwarp = radius * subwarpScale * 1.3;
+  const planetMax = 1.5;
+  const buffer = 5;
+  return Math.max(majorAxis, subwarp) + planetMax + buffer;
+}
+
+function addHomeStar(arena: ArenaModel) {
+  const star: StarModel = {
+    id: HOME_STAR_ID,
+    position: {
+      x: arena.half.x * 0.6,
+      y: arena.half.y * 0.6,
+      z: arena.half.z * 0.6
+    },
+    radius: 18,
+    color: "#22c55e",
+    brightness: 1,
+    phase: rand() * Math.PI * 2,
+    orbits: buildOrbits(18, true, true)
+  };
+  star.orbits?.forEach((o, orbitIdx) => {
+    if (o.hasPlanet) {
+      o.planet = createPlanet(1, orbitIdx + 1);
+    }
+  });
+  arena.stars.push(star);
+}
+
+function addRandomStars(arena: ArenaModel, count: number, subwarpScale: number, startIndex = 2) {
+  const colors = ["#808080", "#f94144", "#f3722c", "#f9c74f", "#90be6d", "#577590", "#8d6cff", "#2dd4bf"];
+  const radii = [1, 3, 5, 7];
+  const weights = [0.3, 0.25, 0.15, 0.05];
+  const existing: { pos: { x: number; y: number; z: number }; footprint: number }[] = arena.stars.map((s) => ({
+    pos: { ...s.position },
+    footprint: systemFootprint(s.radius, subwarpScale)
+  }));
+  let starIndex = startIndex;
+  let added = 0;
+  let attempts = 0;
+  while (added < count && attempts < count * 100) {
+    attempts += 1;
+    const radius = pickWeighted(radii, weights);
+    const footprint = systemFootprint(radius, subwarpScale);
+    let pos: { x: number; y: number; z: number } | null = null;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const candidate = {
+        x: (rand() * 2 - 1) * (arena.half.x * 0.9),
+        y: (rand() * 2 - 1) * (arena.half.y * 0.9),
+        z: (rand() * 2 - 1) * (arena.half.z * 0.9)
+      };
+      const tooClose = existing.some((e) => {
+        const dx = candidate.x - e.pos.x;
+        const dy = candidate.y - e.pos.y;
+        const dz = candidate.z - e.pos.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        return dist < e.footprint + footprint;
+      });
+      if (!tooClose) {
+        pos = candidate;
+        existing.push({ pos: candidate, footprint });
+        break;
+      }
+    }
+    if (!pos) continue;
+    const color = colors[added % colors.length];
+    const isGrey = color === "#808080";
+    const starId = `S-${starIndex}`;
+    const star: StarModel = {
+      id: starId,
+      position: pos,
+      radius: isGrey ? radius * 1.4 : radius,
+      color,
+      brightness: isGrey ? 1.2 : 0.4 + rand() * 0.6,
+      phase: rand() * Math.PI * 2,
+      orbits: buildOrbits(radius, !isGrey)
+    };
+    if (!isGrey && star.orbits) {
+      star.orbits.forEach((o, orbitIdx) => {
+        if (o.hasPlanet) {
+          o.planet = createPlanet(starIndex, orbitIdx + 1);
+        }
+      });
+    }
+    arena.stars.push(star);
+    starIndex += 1;
+    added += 1;
+  }
+}
+
+export function populateArenaModel(arena: ArenaModel, starCount: number, subwarpScale: number) {
+  seedRand(Date.now());
+  arena.stars = [];
+  addHomeStar(arena);
+  addRandomStars(arena, starCount, subwarpScale, 2);
+  log(
+    "ARENA_INIT",
+    "Arena stars generated",
+    {
+      count: arena.stars.length,
+      stars: arena.stars.map((s) => ({ id: s.id, pos: s.position, radius: s.radius, color: s.color }))
+    }
+  );
 }

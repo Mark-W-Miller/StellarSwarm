@@ -34,9 +34,21 @@ export class StarInfoPanel {
       activePlanets
         .map(({ orbit, o }) => {
           const angleDeg = ((o.planet?.angle ?? 0) * 180) / Math.PI;
-          return `<li>Shell ${orbit} (r=${o.radius.toFixed(2)}): planet ${o.planet?.id} ` +
-            `radius=${o.planet?.radius.toFixed(2)} color=${o.planet?.color} ` +
-            `angle=${angleDeg.toFixed(1)}° speed=${o.planet?.angularSpeed.toFixed(3)}</li>`;
+          // Derived ellipse radii: emit both the raw orbit radius and the path radii.
+          const rawR = o.radius;
+          const pathMajor = rawR * 0.8;
+          const pathMinor = pathMajor * (0.7 / 1.3);
+          return `
+            <li>
+              Shell ${orbit} (orbit r=${rawR.toFixed(2)}):
+              planet ${o.planet?.id}
+              radius=${o.planet?.radius.toFixed(2)}
+              color=${o.planet?.color}
+              angle=${angleDeg.toFixed(1)}°
+              speed=${o.planet?.angularSpeed.toFixed(3)}
+              | ellipse (display) major=${pathMajor.toFixed(2)} minor=${pathMinor.toFixed(2)}
+              | path calc major=${pathMajor.toFixed(2)} minor=${pathMinor.toFixed(2)}
+            </li>`;
         })
         .join("") ?? "";
     this.lastStar = star;

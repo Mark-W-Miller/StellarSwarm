@@ -7,6 +7,7 @@ import { StarAsset } from "./starAsset";
 type StarInstance = {
   model: StarModel;
   mesh: Mesh;
+  systemSpeed: number;
   selection?: Mesh;
   subwarp?: LineSegments;
   planets?: {
@@ -17,6 +18,7 @@ type StarInstance = {
     group: Group;
     majorAxis: number;
     minorAxis: number;
+    planeY: number;
   }[];
 };
 
@@ -46,15 +48,19 @@ export class ArenaAsset {
   addStar(star: StarModel) {
     const mesh = this.starAsset.createMesh(star);
     const initialRot = Math.random() * Math.PI * 2;
+    // One full rotation per minute at 10 ticks/sec => 2π / (60*10) per tick.
+    const systemSpeed = (Math.PI * 2 * (Math.random() > 0.5 ? 1 : -1)) / (60 * 10);
     mesh.rotation.y = initialRot;
     this.group.add(mesh);
-    const subwarp = this.starAsset.createSubwarpGrid(star, this.subwarpScale, this.subwarpSpokes);
+    const orbitColors =
+      star.orbits?.map((o) => (o.planet ? o.planet.color : star.color)) ?? undefined;
+    const subwarp = this.starAsset.createSubwarpGrid(star, this.subwarpScale, this.subwarpSpokes, orbitColors);
     subwarp.rotation.y = initialRot;
     subwarp.position.set(star.position.x, star.position.y, star.position.z);
     this.group.add(subwarp);
     const planets = this.buildPlanets(star);
     planets.forEach((p) => this.group.add(p.group));
-    this.stars.push({ model: star, mesh, subwarp, planets });
+    this.stars.push({ model: star, mesh, subwarp, planets, systemSpeed });
     this.starMap.set(mesh, star);
     this.spinLookup.set(star.id, this.starAsset.getSpinSpeed(star));
   }
@@ -72,17 +78,21 @@ export class ArenaAsset {
   }
 
   tick() {
-    this.stars.forEach(({ model, mesh, subwarp, planets }) => {
+    this.stars.forEach(({ model, mesh, subwarp, planets, systemSpeed }) => {
       const dist = mesh.position.distanceTo(this.camera.position);
       const intensity = Math.max(0.3, 1 / Math.max(1, dist));
       this.starAsset.tick(model, mesh, intensity);
+      mesh.rotation.y += systemSpeed;
+      if (subwarp) {
+        subwarp.rotation.y = mesh.rotation.y;
+      }
       if (planets && planets.length > 0) {
         planets.forEach((p) => {
           // Planet orbits advance at a steady rate; then inherit the system (star) rotation.
           p.angle = (p.angle + p.angularSpeed) % (Math.PI * 2);
           const x = p.majorAxis * Math.cos(p.angle);
           const z = p.minorAxis * Math.sin(p.angle);
-          const pos = new Vector3(x, 0, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
+          const pos = new Vector3(x, p.planeY, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
           p.mesh.position.copy(pos);
         });
       }
@@ -150,7 +160,8 @@ export class ArenaAsset {
     this.stars.forEach((s) => {
       if (s.subwarp) this.group.remove(s.subwarp);
       s.planets?.forEach((p) => this.group.remove(p.group));
-      const subwarp = this.starAsset.createSubwarpGrid(s.model, this.subwarpScale, this.subwarpSpokes);
+      const orbitColors = s.model.orbits?.map((o) => (o.planet ? o.planet.color : s.model.color));
+      const subwarp = this.starAsset.createSubwarpGrid(s.model, this.subwarpScale, this.subwarpSpokes, orbitColors);
       subwarp.position.copy(s.mesh.position);
       s.subwarp = subwarp;
       s.planets = this.buildPlanets(s.model);
@@ -168,6 +179,7 @@ export class ArenaAsset {
       group: Group;
       majorAxis: number;
       minorAxis: number;
+      planeY: number;
     }[] = [];
     const halfBounds = Math.sqrt(
       this.model.half.x * this.model.half.x +
@@ -192,6 +204,7 @@ export class ArenaAsset {
       const angularSpeed = orbit.planet.angularSpeed * speedScale;
       const majorAxis = orbit.radius * 0.8;
       const minorAxis = majorAxis * (0.7 / 1.3); // match subwarp flatten ratio
+      const planeY = star.radius * 0.2;
       planets.push({
         orbitRadius: orbit.radius,
         mesh: planetMesh,
@@ -199,7 +212,8 @@ export class ArenaAsset {
         angle: orbit.planet.angle,
         group: planetGroup,
         majorAxis,
-        minorAxis
+        minorAxis,
+        planeY
       });
     });
     return planets;

@@ -1,5 +1,6 @@
 import {
   BufferGeometry,
+  BufferAttribute,
   Color,
   EdgesGeometry,
   LineBasicMaterial,
@@ -96,12 +97,13 @@ export class StarAsset {
     return geom;
   }
 
-  createSubwarpGrid(star: StarModel, scale: number, spokes = 12) {
+  createSubwarpGrid(star: StarModel, scale: number, spokes = 12, orbitColors?: string[]) {
     const radiusX = star.radius * scale * 1.3;
     const radiusZ = star.radius * scale * 0.7;
     const planeY = star.radius * 0.2;
     const step = Math.max(star.radius / 2, 1);
     const points: Vector3[] = [];
+    const colors: number[] = [];
 
     const ringCount = Math.max(4, Math.floor((Math.max(radiusX, radiusZ) - step) / step));
     for (let ri = 1; ri <= ringCount; ri += 1) {
@@ -118,6 +120,10 @@ export class StarAsset {
           new Vector3(rx * Math.cos(theta1), y, rz * Math.sin(theta1)),
           new Vector3(rx * Math.cos(theta2), y, rz * Math.sin(theta2))
         );
+        const colorIdx = Math.min(ri - 1, Math.max((orbitColors?.length ?? 1) - 1, 0));
+        const col = orbitColors ? orbitColors[colorIdx] : star.color;
+        const c = new Color(col);
+        colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
       }
     }
 
@@ -127,16 +133,24 @@ export class StarAsset {
       const x = radiusX * Math.cos(theta);
       const z = radiusZ * Math.sin(theta);
       points.push(new Vector3(0, planeY, 0), new Vector3(x, planeY, z));
+      const colorIdx = Math.max(Math.min(ringCount - 1, (orbitColors?.length ?? 1) - 1), 0);
+      const col = orbitColors ? orbitColors[colorIdx] : star.color;
+      const c = new Color(col);
+      colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
     }
 
     const geom = new BufferGeometry().setFromPoints(points);
+    if (colors.length > 0) {
+      geom.setAttribute("color", new BufferAttribute(new Float32Array(colors), 3));
+    }
     const mat = new LineBasicMaterial({
       color: new Color(star.color),
-      opacity: 0.6,
-      transparent: true
+      opacity: 1,
+      transparent: false,
+      vertexColors: colors.length > 0
     });
-    // Hint thicker lines; may be constrained by platform.
-    (mat as any).linewidth = 2;
+    // Hint thicker lines; may be constrained by platform/GL.
+    (mat as any).linewidth = 20;
     return new LineSegments(geom, mat);
   }
 
