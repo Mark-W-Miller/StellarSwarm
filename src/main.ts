@@ -19,6 +19,7 @@ import { LogOverlay } from "./ui/log/logOverlay";
 import { logStartup } from "./ui/log/logger";
 import type { StarModel } from "./model/starModel";
 import { SceneInteraction } from "./ui/sceneInteraction";
+import { StarInfoPanel } from "./ui/starInfo";
 
 let rngSeed = Date.now();
 function seedRand(seed: number) {
@@ -31,6 +32,25 @@ function rand() {
 
 function clamp(val: number, min: number, max: number) {
   return Math.min(max, Math.max(min, val));
+}
+
+function persistSetting(key: string, value: number) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error("persistSetting failed", e);
+  }
+}
+
+function readSetting(key: string, fallback: number) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const v = JSON.parse(raw);
+    return typeof v === "number" ? v : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function requireElement<T extends Element>(selector: string): T {
@@ -57,7 +77,14 @@ seedRand(Date.now());
 const initialStarCount = 100;
 addHomeStar(arenaModel);
 addRandomStars(arenaModel, initialStarCount);
-const cameraController = new CameraController(camera, stage3d, settings.camera, arenaModel.half);
+const arenaAsset = new ArenaAsset(arenaModel, camera);
+const cameraController = new CameraController(
+  camera,
+  stage3d,
+  settings.camera,
+  arenaModel.half,
+  arenaAsset
+);
 // Place the camera in the positive corner, looking at origin.
 cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
 
@@ -78,7 +105,7 @@ starsLabel.textContent = "Stars:";
 const seedInput = document.createElement("input");
 seedInput.type = "number";
 seedInput.min = "1";
-seedInput.value = `${initialStarCount}`;
+seedInput.value = `${readSetting("hud:stars", initialStarCount)}`;
 starsLabel.appendChild(seedInput);
 
 const gridLabel = document.createElement("label");
@@ -87,7 +114,7 @@ const subwarpInput = document.createElement("input");
 subwarpInput.type = "number";
 subwarpInput.min = "0.5";
 subwarpInput.step = "0.5";
-subwarpInput.value = "4";
+subwarpInput.value = `${readSetting("hud:grid", 4)}`;
 gridLabel.appendChild(subwarpInput);
 
 const spokesLabel = document.createElement("label");
@@ -96,7 +123,7 @@ const spokesInput = document.createElement("input");
 spokesInput.type = "number";
 spokesInput.min = "3";
 spokesInput.step = "1";
-spokesInput.value = "12";
+spokesInput.value = `${readSetting("hud:spokes", 12)}`;
 spokesLabel.appendChild(spokesInput);
 
 const simSpeedLabel = document.createElement("label");
@@ -104,10 +131,23 @@ simSpeedLabel.textContent = "Sim speed (1-60):";
 const simSpeedInput = document.createElement("input");
 simSpeedInput.type = "number";
 simSpeedInput.min = "1";
-simSpeedInput.max = `${settings.sim.maxTickRate ?? 360}`;
+const simSpeedMax = settings.sim.maxTickRate ?? 360;
+simSpeedInput.max = `${simSpeedMax}`;
 simSpeedInput.step = "1";
-simSpeedInput.value = `${settings.sim.tickRate}`;
+const simSpeedInitial = clamp(readSetting("hud:simspeed", settings.sim.tickRate), 1, simSpeedMax);
+simSpeedInput.value = `${simSpeedInitial}`;
 simSpeedLabel.appendChild(simSpeedInput);
+
+const attenLabel = document.createElement("label");
+attenLabel.textContent = "Attenuation (1-100):";
+const attenInput = document.createElement("input");
+attenInput.type = "number";
+attenInput.min = "1";
+attenInput.max = "100";
+attenInput.step = "1";
+const attenInitial = clamp(readSetting("hud:atten", 1), 1, 100);
+attenInput.value = `${attenInitial}`;
+attenLabel.appendChild(attenInput);
 
 const seedButton = document.createElement("button");
 seedButton.textContent = "Regenerate";
@@ -115,31 +155,47 @@ seedButton.addEventListener("click", () => {
   const count = Number(seedInput.value) || initialStarCount;
   const subwarpScale = Number(subwarpInput.value) || 4;
   const spokes = Number(spokesInput.value) || 12;
-  const simSpeed = clamp(Number(simSpeedInput.value) || settings.sim.tickRate, 1, settings.sim.maxTickRate ?? 360);
+  const simSpeed = clamp(Number(simSpeedInput.value) || settings.sim.tickRate, 1, simSpeedMax);
+  const attenuation = clamp(Number(attenInput.value) || attenInitial, 1, 100);
+  persistSetting("hud:stars", count);
+  persistSetting("hud:grid", subwarpScale);
+  persistSetting("hud:spokes", spokes);
+  persistSetting("hud:simspeed", simSpeed);
+  persistSetting("hud:atten", attenuation);
   settings.sim.tickRate = simSpeed;
   regenerateStars(count);
   arenaAsset.setSubwarpScale(subwarpScale);
   arenaAsset.setSubwarpSpokes(spokes);
-  arenaAsset.setSpinRateFactor(simSpeed / 10);
+  arenaAsset.setSpinRate(simSpeed, simSpeedMax);
+  arenaAsset.setAttenuation(attenuation);
 });
 
 subwarpInput.addEventListener("change", () => {
   const subwarpScale = Number(subwarpInput.value) || 4;
+  persistSetting("hud:grid", subwarpScale);
   arenaAsset.setSubwarpScale(subwarpScale);
 });
 
 spokesInput.addEventListener("change", () => {
   const spokes = Number(spokesInput.value) || 12;
+  persistSetting("hud:spokes", spokes);
   arenaAsset.setSubwarpSpokes(spokes);
 });
 
 simSpeedInput.addEventListener("change", () => {
-  const simSpeed = clamp(Number(simSpeedInput.value) || settings.sim.tickRate, 1, settings.sim.maxTickRate ?? 360);
+  const simSpeed = clamp(Number(simSpeedInput.value) || settings.sim.tickRate, 1, simSpeedMax);
+  persistSetting("hud:simspeed", simSpeed);
   settings.sim.tickRate = simSpeed;
-  arenaAsset.setSpinRateFactor(simSpeed / 10);
+  arenaAsset.setSpinRate(simSpeed, simSpeedMax);
 });
 
-seedPanel.append(starsLabel, gridLabel, spokesLabel, simSpeedLabel, seedButton);
+attenInput.addEventListener("change", () => {
+  const attenuation = clamp(Number(attenInput.value) || attenInitial, 1, 100);
+  persistSetting("hud:atten", attenuation);
+  arenaAsset.setAttenuation(attenuation);
+});
+
+seedPanel.append(starsLabel, gridLabel, spokesLabel, simSpeedLabel, attenLabel, seedButton);
 document.body.appendChild(seedPanel);
 
 const seedToggle = document.createElement("button");
@@ -152,10 +208,29 @@ seedToggle.addEventListener("click", () => {
 document.body.appendChild(seedToggle);
 logStartup();
 
-const arenaAsset = new ArenaAsset(arenaModel);
-const sceneInteraction = new SceneInteraction(stage3d, camera, arenaAsset, (pos) => {
-  cameraController.setPosition(pos);
-});
+settings.sim.tickRate = simSpeedInitial;
+arenaAsset.setSpinRate(simSpeedInitial, simSpeedMax);
+arenaAsset.setAttenuation(attenInitial);
+const starInfoPanel = new StarInfoPanel(arenaAsset);
+const starInfoToggle = document.createElement("button");
+starInfoToggle.className = "star-info-toggle";
+starInfoToggle.textContent = "Star Info";
+starInfoToggle.addEventListener("click", () => starInfoPanel.toggle());
+document.body.appendChild(starInfoToggle);
+const sceneInteraction = new SceneInteraction(
+  stage3d,
+  camera,
+  arenaAsset,
+  (pos) => {
+    cameraController.setPosition(pos);
+  },
+  (star) => {
+    if (star) {
+      starInfoPanel.show(star);
+    }
+  },
+  () => cameraController.isDragging()
+);
 
 function setupScene() {
   const ambient = new AmbientLight(0xffffff, 0.5);
@@ -241,14 +316,24 @@ function addRandomStars(arena: ArenaModel, count: number) {
       y: (rand() * 2 - 1) * (arena.half.y * 0.9),
       z: (rand() * 2 - 1) * (arena.half.z * 0.9)
     };
+    const color = colors[i % colors.length];
+    const isGrey = color === "#808080";
     const star: StarModel = {
       id: `star-${i}-${Date.now()}`,
       position: pos,
-      radius,
-      color: colors[i % colors.length],
-      brightness: 0.4 + rand() * 0.6,
-      phase: rand() * Math.PI * 2
+      radius: isGrey ? radius * 1.4 : radius,
+      color,
+      brightness: isGrey ? 1.2 : 0.4 + rand() * 0.6,
+      phase: rand() * Math.PI * 2,
+      orbits: buildOrbits(radius, !isGrey)
     };
+    if (!isGrey && star.orbits) {
+      star.orbits.forEach((o, orbitIdx) => {
+        if (o.hasPlanet) {
+          o.planet = createPlanet(orbitIdx);
+        }
+      });
+    }
     arena.stars.push(star);
   }
 }
@@ -264,8 +349,14 @@ function addHomeStar(arena: ArenaModel) {
     radius: 18,
     color: "#22c55e",
     brightness: 1,
-    phase: rand() * Math.PI * 2
+    phase: rand() * Math.PI * 2,
+    orbits: buildOrbits(18, true, true)
   };
+  star.orbits?.forEach((o, orbitIdx) => {
+    if (o.hasPlanet) {
+      o.planet = createPlanet(orbitIdx);
+    }
+  });
   arena.stars.push(star);
 }
 
@@ -278,6 +369,29 @@ function pickWeighted<T>(values: T[], weights: number[]) {
     if (r <= acc) return values[i];
   }
   return values[values.length - 1];
+}
+
+function buildOrbits(starRadius: number, allowPlanets: boolean, forcePlanetAll = false) {
+  const orbits = [];
+  const maxOrbits = 6;
+  for (let i = 1; i <= maxOrbits; i += 1) {
+    const r = starRadius * (1.5 + i * 0.8);
+    const hasPlanet = allowPlanets ? forcePlanetAll || rand() > 0.4 : false;
+    orbits.push({ radius: r, hasPlanet });
+  }
+  return orbits;
+}
+
+function createPlanet(idx: number) {
+  const planetColors = ["#60a5fa", "#fbbf24", "#34d399", "#c084fc", "#f472b6", "#f97316"];
+  const radius = 0.3 + rand() * 0.9;
+  return {
+    id: `planet-${Date.now()}-${idx}-${Math.floor(rand() * 1e6)}`,
+    radius,
+    color: planetColors[idx % planetColors.length],
+    angle: rand() * Math.PI * 2,
+    angularSpeed: 0.01 + rand() * 0.02
+  };
 }
 
 function regenerateStars(count: number) {

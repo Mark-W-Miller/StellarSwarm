@@ -9,7 +9,7 @@ import {
   SphereGeometry,
   Vector3
 } from "three";
-import type { StarModel } from "../model/starModel";
+import type { PlanetModel, StarModel } from "../model/starModel";
 
 export class StarAsset {
   private geometry: SphereGeometry;
@@ -53,8 +53,8 @@ export class StarAsset {
     return mesh;
   }
 
-  tick(star: StarModel, mesh: Mesh) {
-    const intensity = star.brightness * (0.6 + 0.4 * Math.sin(star.phase));
+  tick(star: StarModel, mesh: Mesh, atten = 1) {
+    const intensity = atten * star.brightness * (0.6 + 0.4 * Math.sin(star.phase));
     const mat = mesh.material as MeshStandardMaterial;
     mat.emissiveIntensity = intensity;
   }
@@ -125,5 +125,19 @@ export class StarAsset {
     // Larger stars spin slower; sync by size
     const base = (Math.PI * 2) / 60;
     return base / Math.max(1, star.radius / 3);
+  }
+
+  createPlanetMesh(planet: PlanetModel, orbitRadius: number) {
+    const geom = new SphereGeometry(planet.radius, 10, 10);
+    const mat = new MeshStandardMaterial({
+      color: new Color(planet.color),
+      emissive: new Color(planet.color),
+      emissiveIntensity: 1,
+      roughness: 0.6,
+      metalness: 0.1
+    });
+    const mesh = new Mesh(geom, mat);
+    mesh.position.set(orbitRadius, 0, 0);
+    return mesh;
   }
 }

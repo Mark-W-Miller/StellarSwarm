@@ -5,4 +5,13 @@ export type StarModel = {
   color: string;
   brightness: number;
   phase: number; // for glow animation
+  orbits?: Array<{ radius: number; hasPlanet: boolean; planet?: PlanetModel }>;
+};
+
+export type PlanetModel = {
+  id: string;
+  radius: number;
+  color: string;
+  angle: number;
+  angularSpeed: number;
 };

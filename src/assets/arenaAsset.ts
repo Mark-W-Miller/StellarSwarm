@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from "three";
+import { BufferGeometry, Camera, Color, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from "three";
 import type { ArenaModel } from "../model/arenaModel";
 import type { StarModel } from "../model/starModel";
 import { StarAsset } from "./starAsset";
@@ -8,6 +8,7 @@ type StarInstance = {
   mesh: Mesh;
   selection?: Mesh;
   subwarp?: LineSegments;
+  planets?: { orbitRadius: number; mesh: Mesh; angularSpeed: number; angle: number; group: Group }[];
 };
 
 export class ArenaAsset {
@@ -21,7 +22,7 @@ export class ArenaAsset {
   private spinRateFactor = 1;
   private spinLookup = new Map<string, number>();
 
-  constructor(private model: ArenaModel) {
+  constructor(private model: ArenaModel, private camera: Camera) {
     this.group = new Group();
 
     this.starAsset = new StarAsset();
@@ -39,7 +40,9 @@ export class ArenaAsset {
     const subwarp = this.starAsset.createSubwarpGrid(star, this.subwarpScale, this.subwarpSpokes);
     subwarp.position.set(star.position.x, star.position.y, star.position.z);
     this.group.add(subwarp);
-    this.stars.push({ model: star, mesh, subwarp });
+    const planets = this.buildPlanets(star);
+    planets.forEach((p) => this.group.add(p.group));
+    this.stars.push({ model: star, mesh, subwarp, planets });
     this.starMap.set(mesh, star);
     this.spinLookup.set(star.id, this.starAsset.getSpinSpeed(star));
   }
@@ -49,6 +52,7 @@ export class ArenaAsset {
       this.group.remove(s.mesh);
       if (s.selection) this.group.remove(s.selection);
       if (s.subwarp) this.group.remove(s.subwarp);
+      s.planets?.forEach((p) => this.group.remove(p.group));
     });
     this.stars = [];
     this.starMap.clear();
@@ -56,12 +60,23 @@ export class ArenaAsset {
   }
 
   tick() {
-    this.stars.forEach(({ model, mesh, subwarp }) => {
-      this.starAsset.tick(model, mesh);
+    this.stars.forEach(({ model, mesh, subwarp, planets }) => {
+      const dist = mesh.position.distanceTo(this.camera.position);
+      const intensity = Math.max(0.3, 1 / Math.max(1, dist));
+      this.starAsset.tick(model, mesh, intensity);
       if (subwarp) {
         const baseSpeed = this.spinLookup.get(model.id) ?? this.starAsset.getSpinSpeed(model);
         const speed = baseSpeed * this.spinRateFactor;
         subwarp.rotation.y += speed;
+      }
+      if (planets && planets.length > 0) {
+        planets.forEach((p) => {
+          p.angle = (p.angle + p.angularSpeed * this.spinRateFactor) % (Math.PI * 2);
+          const group = p.mesh.userData.planetGroup as Group;
+          if (group) {
+            group.rotation.y = p.angle;
+          }
+        });
       }
     });
   }
@@ -96,18 +111,63 @@ export class ArenaAsset {
     this.refreshSubwarp();
   }
 
-  setSpinRateFactor(factor: number) {
-    this.spinRateFactor = Math.max(0.1, factor);
+  setSpinRate(simSpeed: number, maxSpeed: number) {
+    const norm = Math.max(0, simSpeed - 1) / Math.max(1, maxSpeed - 1);
+    this.spinRateFactor = norm;
+  }
+
+  attenuationForStar(star: StarModel) {
+    const camPos = this.camera?.position ?? new Vector3();
+    const dist = new Vector3(star.position.x, star.position.y, star.position.z).distanceTo(camPos);
+    return Math.max(0.3, 1 / Math.max(1, dist));
+  }
+
+  setAttenuation(value: number) {
+    // this.attenuation = Math.max(0.01, value);
   }
 
   private refreshSubwarp() {
     this.stars.forEach((s) => {
       if (s.subwarp) this.group.remove(s.subwarp);
+      s.planets?.forEach((p) => this.group.remove(p.group));
       const subwarp = this.starAsset.createSubwarpGrid(s.model, this.subwarpScale, this.subwarpSpokes);
       subwarp.position.copy(s.mesh.position);
       s.subwarp = subwarp;
+      s.planets = this.buildPlanets(s.model);
+      s.planets?.forEach((p) => this.group.add(p.group));
       this.group.add(subwarp);
     });
+  }
+
+  private buildPlanets(star: StarModel) {
+    const planets: { orbitRadius: number; mesh: Mesh; angularSpeed: number; angle: number; group: Group }[] = [];
+    const halfBounds = Math.sqrt(
+      this.model.half.x * this.model.half.x +
+        this.model.half.y * this.model.half.y +
+        this.model.half.z * this.model.half.z
+    ) * 0.5;
+    const dist = Math.sqrt(
+      star.position.x * star.position.x +
+        star.position.y * star.position.y +
+        star.position.z * star.position.z
+    );
+    const allowPlanets = dist <= halfBounds || star.id === "home-star";
+    if (!star.orbits) return planets;
+    star.orbits.forEach((orbit, idx) => {
+      if (!orbit.hasPlanet || !orbit.planet || !allowPlanets) return;
+      const planetMesh = this.starAsset.createPlanetMesh(orbit.planet, orbit.radius);
+      const planetGroup = new Group();
+      planetGroup.position.set(star.position.x, star.position.y, star.position.z);
+      planetGroup.add(planetMesh);
+      planets.push({
+        orbitRadius: orbit.radius,
+        mesh: planetMesh,
+        angularSpeed: orbit.planet.angularSpeed,
+        angle: orbit.planet.angle,
+        group: planetGroup
+      });
+    });
+    return planets;
   }
 
   private buildCornerMarkers() {

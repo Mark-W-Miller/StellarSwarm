@@ -129,21 +129,25 @@ export class LogOverlay {
         input.checked = selected === null || selected.has(cls);
       }
 
-      input.addEventListener("change", () => {
+      input.addEventListener("change", (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        const current = logger.getState();
+        const currentSelected = current.selectedClasses ? new Set(current.selectedClasses) : null;
         if (!cls) {
           logger.setSelectedClasses(null);
+          return;
+        }
+        const next = currentSelected ? new Set(currentSelected) : new Set(current.classes);
+        if (input.checked) {
+          next.add(cls);
         } else {
-          const next = selected ? new Set(selected) : new Set(state.classes);
-          if (input.checked) {
-            next.add(cls);
-          } else {
-            next.delete(cls);
-          }
-          if (next.size === state.classes.length) {
-            logger.setSelectedClasses(null);
-          } else {
-            logger.setSelectedClasses(Array.from(next));
-          }
+          next.delete(cls);
+        }
+        if (next.size === current.classes.length) {
+          logger.setSelectedClasses(null);
+        } else {
+          logger.setSelectedClasses(Array.from(next));
         }
       });
 

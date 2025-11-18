@@ -1,6 +1,7 @@
-import { PerspectiveCamera, Vector3 } from "three";
+import { PerspectiveCamera, Raycaster, Vector2, Vector3 } from "three";
 import { log } from "./log/logger";
 import type { Settings } from "../types";
+import type { ArenaAsset } from "../assets/arenaAsset";
 
 type PointerState = {
   active: boolean;
@@ -20,12 +21,16 @@ export class CameraController {
   private bounds: Vector3;
   private pointer: PointerState = { active: false, lastX: 0, lastY: 0, button: 0 };
   private keyState = new Set<string>();
+  private raycaster = new Raycaster();
+  private ndc = new Vector2();
+  private arenaAsset?: ArenaAsset;
 
   constructor(
     camera: PerspectiveCamera,
     domElement: HTMLElement,
     settings: Settings["camera"],
-    bounds: { x: number; y: number; z: number }
+    bounds: { x: number; y: number; z: number },
+    arenaAsset?: ArenaAsset
   ) {
     this.camera = camera;
     this.domElement = domElement;
@@ -35,6 +40,7 @@ export class CameraController {
     this.pitch = -Math.PI / 8;
     this.radius = settings.radius;
     this.bounds = new Vector3(bounds.x, bounds.y, bounds.z);
+    this.arenaAsset = arenaAsset;
 
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -114,6 +120,10 @@ export class CameraController {
     return this.target.clone();
   }
 
+  isDragging() {
+    return this.pointer.active;
+  }
+
   setPosition(position: Vector3, target = new Vector3(0, 0, 0)) {
     this.target.copy(target);
     const offset = new Vector3().subVectors(position, target);
@@ -128,45 +138,54 @@ export class CameraController {
     this.updateCamera();
   }
 
+  private hitSceneObject(event: PointerEvent) {
+    if (!this.arenaAsset) return false;
+    const rect = this.domElement.getBoundingClientRect();
+    this.ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
+    return Boolean(hit && (hit.star || hit.mesh));
+  }
+
   private handlePointerDown(event: PointerEvent) {
+    log("CAMERA_MOVE", "Pointer down", { button: event.button });
+    if (!(event.target instanceof HTMLElement)) return;
+    if (
+      event.target.closest(".log-toggle, .log-overlay, .seed-panel, .star-info, .star-info-toggle")
+    ) {
+      return;
+    }
+    if (event.target !== this.domElement && !this.domElement.contains(event.target)) return;
+    if (this.hitSceneObject(event)) return;
     this.pointer = { active: true, lastX: event.clientX, lastY: event.clientY, button: event.button ?? 0 };
-    this.domElement.setPointerCapture(event.pointerId);
   }
 
   private handlePointerMove(event: PointerEvent) {
     if (!this.pointer.active) return;
+    log("CAMERA_MOVE", "Orbit drag", this.pointer.active);
     const dx = event.clientX - this.pointer.lastX;
     const dy = event.clientY - this.pointer.lastY;
     this.pointer.lastX = event.clientX;
     this.pointer.lastY = event.clientY;
 
-    if (this.pointer.button === 2) {
-      // Right button: pan in screen space.
-      const panX = -dx * this.settings.panSpeed * 0.05;
-      const panZ = dy * this.settings.panSpeed * 0.05;
-      const right = new Vector3();
-      const forward = new Vector3();
-      this.camera.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
-      right.crossVectors(forward, new Vector3(0, 1, 0)).normalize().negate();
-      this.target.addScaledVector(right, panX);
-      this.target.addScaledVector(forward, panZ);
-      log("CAMERA_MOVE", "Mouse pan", { target: this.target.toArray() });
-    } else {
-      this.yaw += dx * this.settings.dragSensitivity;
-      const minPitch = -Math.PI + 0.1;
-      const maxPitch = Math.PI / 2 - 0.05;
-      this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch + dy * this.settings.dragSensitivity));
-      log("CAMERA_MOVE", "Orbit drag", { yaw: this.yaw, pitch: this.pitch });
-    }
+    this.yaw += dx * this.settings.dragSensitivity;
+    const minPitch = -Math.PI + 0.1;
+    const maxPitch = Math.PI / 2 - 0.05;
+    this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch + dy * this.settings.dragSensitivity));
     this.clampToBounds();
     this.updateCamera();
   }
 
   private handlePointerUp(event: PointerEvent) {
+    log("CAMERA_MOVE", "Pointer up", { button: event.button });
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest(".log-toggle, .log-overlay, .seed-panel, .star-info, .star-info-toggle")
+    ) {
+      return;
+    }
     this.pointer.active = false;
-    this.domElement.releasePointerCapture(event.pointerId);
   }
 
   private handleWheel(event: WheelEvent) {

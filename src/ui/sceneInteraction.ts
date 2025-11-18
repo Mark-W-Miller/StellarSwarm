@@ -27,7 +27,9 @@ export class SceneInteraction {
     private element: HTMLElement,
     private camera: Camera,
     private arenaAsset: ArenaAsset,
-    private onCornerDoubleClick?: (pos: Vector3) => void
+    private onCornerDoubleClick?: (pos: Vector3) => void,
+    private onStarSelect?: (star: any) => void,
+    private isCameraDragging?: () => boolean
   ) {
     this.onPointerMove = this.onPointerMove.bind(this);
     this.onPointerDown = this.onPointerDown.bind(this);
@@ -73,6 +75,7 @@ export class SceneInteraction {
   }
 
   private onPointerMove(event: PointerEvent) {
+    if (this.isCameraDragging?.()) return;
     this.updateRay(event);
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
 
@@ -93,7 +96,7 @@ export class SceneInteraction {
       return;
     }
 
-    if (hit?.star) {
+    if (hit?.star && this.currentDragOver !== hit.star.id) {
       this.setCursor(true);
       log("M_EVENT_MOVE", "Hover star", { star: hit.star.id });
       this.consume(event);
@@ -139,8 +142,10 @@ export class SceneInteraction {
         log("M_EVENT_CLICK", "Star double-click", { star: hit.star.id });
       }
       this.lastStarClick = { id: hit.star.id, time: now };
+      this.onStarSelect?.(hit.star);
       this.setCursor(true);
       this.consume(event);
+      return;
     } else {
       this.lastStarClick = { id: null, time: 0 };
       if (this.selectionChain.length > 0) {
