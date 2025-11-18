@@ -92,9 +92,21 @@ export class ArenaAsset {
   addSelection(starId: string) {
     const target = this.stars.find((s) => s.model.id === starId);
     if (!target || target.selection) return;
-    const selection = this.starAsset.createSelectionMesh(target.model);
+    const selection = this.starAsset.createSelectionMesh(target.model, this.subwarpScale);
     target.selection = selection;
     this.group.add(selection);
+  }
+
+  removeSelection(starId: string) {
+    const target = this.stars.find((s) => s.model.id === starId);
+    if (!target || !target.selection) return;
+    this.group.remove(target.selection);
+    target.selection = undefined;
+  }
+
+  isSelected(starId: string) {
+    const target = this.stars.find((s) => s.model.id === starId);
+    return Boolean(target?.selection);
   }
 
   getCornerMarkers() {

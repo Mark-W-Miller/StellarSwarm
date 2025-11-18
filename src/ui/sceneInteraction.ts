@@ -132,10 +132,24 @@ export class SceneInteraction {
     }
 
     if (hit && hit.star) {
-      this.drag = { active: true, starId: hit.star.id, wasDrag: false };
-      this.currentDragOver = hit.star.id;
-      this.selectionChain.push(hit.star.id);
-      this.arenaAsset.addSelection(hit.star.id);
+      this.drag = { active: false };
+      this.currentDragOver = null;
+      const shift = event.shiftKey;
+      const alreadySelected = this.arenaAsset.isSelected(hit.star.id);
+      if (shift) {
+        if (alreadySelected) {
+          this.arenaAsset.removeSelection(hit.star.id);
+          this.selectionChain = this.selectionChain.filter((id) => id !== hit.star.id);
+          log("M_EVENT_CLICK", "Star deselected (toggle)", { star: hit.star.id });
+        } else {
+          this.arenaAsset.addSelection(hit.star.id);
+          this.selectionChain.push(hit.star.id);
+          log("M_EVENT_CLICK", "Star selected (toggle)", { star: hit.star.id });
+        }
+      } else {
+        this.selectionChain.push(hit.star.id);
+        this.arenaAsset.addSelection(hit.star.id);
+      }
       const now = performance.now();
       log("M_EVENT_CLICK", "Star pointerdown", { star: hit.star.id, button: event.button });
       if (this.lastStarClick.id === hit.star.id && now - this.lastStarClick.time < 350) {

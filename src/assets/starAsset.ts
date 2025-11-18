@@ -13,12 +13,10 @@ import type { PlanetModel, StarModel } from "../model/starModel";
 
 export class StarAsset {
   private geometry: SphereGeometry;
-  private selectionGeometry: SphereGeometry;
   private selectionMaterial: MeshStandardMaterial;
 
   constructor() {
     this.geometry = new SphereGeometry(1, 16, 16);
-    this.selectionGeometry = new SphereGeometry(1.4, 12, 12);
     this.selectionMaterial = new MeshStandardMaterial({
       color: new Color("#ffffff"),
       emissive: new Color("#ffffff"),
@@ -43,11 +41,25 @@ export class StarAsset {
     return mesh;
   }
 
-  createSelectionMesh(star: StarModel) {
-    const geom =
-      star.id === "home-star"
-        ? new CylinderGeometry(star.radius * 1.1, star.radius * 1.1, star.radius * 1.8, 14)
-        : this.selectionGeometry.clone();
+  createSelectionMesh(star: StarModel, subwarpScale: number) {
+    // Enclose the full system: grow to the largest orbit (or subwarp grid) with margin.
+    const maxOrbit =
+      star.orbits && star.orbits.length > 0
+        ? Math.max(...star.orbits.map((o) => o.radius))
+        : star.radius * subwarpScale * 1.3;
+    const radiusX = maxOrbit * 1.1;
+    const radiusZ = maxOrbit * 1.1;
+    const radiusY = Math.max(star.radius * 1.5, maxOrbit * 0.2);
+
+    let geom: BufferGeometry;
+    if (star.id === "home-star") {
+      geom = new CylinderGeometry(radiusX, radiusX, radiusY * 2, 14);
+    } else {
+      const sphere = new SphereGeometry(1, 14, 14);
+      sphere.scale(radiusX, radiusY, radiusZ);
+      geom = sphere;
+    }
+
     const mesh = new Mesh(geom, this.selectionMaterial.clone());
     mesh.position.set(star.position.x, star.position.y, star.position.z);
     return mesh;
