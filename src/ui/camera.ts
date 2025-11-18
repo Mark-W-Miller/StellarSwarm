@@ -8,6 +8,7 @@ type PointerState = {
   lastX: number;
   lastY: number;
   button: number;
+  mode: "orbit" | "pan";
 };
 
 export class CameraController {
@@ -19,7 +20,7 @@ export class CameraController {
   private radius: number;
   private settings: Settings["camera"];
   private bounds: Vector3;
-  private pointer: PointerState = { active: false, lastX: 0, lastY: 0, button: 0 };
+  private pointer: PointerState = { active: false, lastX: 0, lastY: 0, button: 0, mode: "orbit" };
   private keyState = new Set<string>();
   private raycaster = new Raycaster();
   private ndc = new Vector2();
@@ -138,6 +139,20 @@ export class CameraController {
     this.updateCamera();
   }
 
+  focusOn(target: Vector3) {
+    this.target.copy(target);
+    const offset = this.camera.position.clone().sub(this.target);
+    const radius = offset.length();
+    if (radius > 0) {
+      this.radius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, radius));
+      this.yaw = Math.atan2(offset.z, offset.x);
+      const ratio = offset.y / radius;
+      this.pitch = Math.asin(Math.max(-1, Math.min(1, ratio)));
+    }
+    // Keep the camera where it is; just realign its orientation to the new target.
+    this.camera.lookAt(this.target);
+  }
+
   private hitSceneObject(event: PointerEvent) {
     if (!this.arenaAsset) return false;
     const rect = this.domElement.getBoundingClientRect();
@@ -158,17 +173,39 @@ export class CameraController {
     }
     if (event.target !== this.domElement && !this.domElement.contains(event.target)) return;
     if (this.hitSceneObject(event)) return;
-    this.pointer = { active: true, lastX: event.clientX, lastY: event.clientY, button: event.button ?? 0 };
+    const mode = event.shiftKey && event.button === 0 ? "pan" : "orbit";
+    this.pointer = {
+      active: true,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      button: event.button ?? 0,
+      mode
+    };
+    log("CAMERA_MOVE", mode === "pan" ? "Pan start" : "Orbit start", { button: event.button });
   }
 
   private handlePointerMove(event: PointerEvent) {
     if (!this.pointer.active) return;
-    log("CAMERA_MOVE", "Orbit drag", this.pointer.active);
     const dx = event.clientX - this.pointer.lastX;
     const dy = event.clientY - this.pointer.lastY;
     this.pointer.lastX = event.clientX;
     this.pointer.lastY = event.clientY;
 
+    if (this.pointer.mode === "pan") {
+      const right = new Vector3();
+      const up = new Vector3(0, 1, 0);
+      this.camera.getWorldDirection(right);
+      right.crossVectors(right, up).normalize();
+      const panScale = this.settings.panSpeed * 0.1;
+      this.target.addScaledVector(right, -dx * panScale);
+      this.target.addScaledVector(up, dy * panScale);
+      this.clampToBounds();
+      this.updateCamera();
+      log("CAMERA_MOVE", "Pan drag", { dx, dy, target: this.target.toArray() });
+      return;
+    }
+
+    log("CAMERA_MOVE", "Orbit drag", this.pointer.active);
     this.yaw += dx * this.settings.dragSensitivity;
     const minPitch = -Math.PI + 0.1;
     const maxPitch = Math.PI / 2 - 0.05;

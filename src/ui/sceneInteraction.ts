@@ -29,6 +29,7 @@ export class SceneInteraction {
     private arenaAsset: ArenaAsset,
     private onCornerDoubleClick?: (pos: Vector3) => void,
     private onStarSelect?: (star: any) => void,
+    private onStarDoubleClick?: (pos: Vector3) => void,
     private isCameraDragging?: () => boolean
   ) {
     this.onPointerMove = this.onPointerMove.bind(this);
@@ -78,15 +79,16 @@ export class SceneInteraction {
     if (this.isCameraDragging?.()) return;
     this.updateRay(event);
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
+    const star = hit?.star;
 
     if (this.drag.active) {
-      if (hit && hit.star) {
-        this.drag = { active: true, starId: hit.star.id, wasDrag: true };
-        if (this.currentDragOver !== hit.star.id) {
-          this.currentDragOver = hit.star.id;
-          log("M_EVENT_DRAG", "Drag over star", { star: hit.star.id, origin: this.drag.starId });
+      if (star) {
+        this.drag = { active: true, starId: star.id, wasDrag: true };
+        if (this.currentDragOver !== star.id) {
+          this.currentDragOver = star.id;
+          log("M_EVENT_DRAG", "Drag over star", { star: star.id, origin: this.drag.starId });
         } else {
-          log("M_EVENT_DRAG", "Drag move", { star: hit.star.id });
+          log("M_EVENT_DRAG", "Drag move", { star: star.id });
         }
       } else {
         this.drag = { active: true, starId: this.drag.starId, wasDrag: true };
@@ -96,9 +98,9 @@ export class SceneInteraction {
       return;
     }
 
-    if (hit?.star && this.currentDragOver !== hit.star.id) {
+    if (star && this.currentDragOver !== star.id) {
       this.setCursor(true);
-      log("M_EVENT_MOVE", "Hover star", { star: hit.star.id });
+      log("M_EVENT_MOVE", "Hover star", { star: star.id });
       this.consume(event);
     } else if (hit?.mesh && this.cornersByMesh.has(hit.mesh as Mesh)) {
       this.setCursor(true);
@@ -110,6 +112,7 @@ export class SceneInteraction {
   private onPointerDown(event: PointerEvent) {
     this.updateRay(event);
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
+    const star = hit?.star;
 
     if (hit?.mesh && hit.mesh instanceof Mesh && this.cornersByMesh.has(hit.mesh)) {
       const pos = this.cornersByMesh.get(hit.mesh);
@@ -131,32 +134,33 @@ export class SceneInteraction {
       this.lastCornerClick = { id: null, time: 0 };
     }
 
-    if (hit && hit.star) {
+    if (star) {
       this.drag = { active: false };
       this.currentDragOver = null;
       const shift = event.shiftKey;
-      const alreadySelected = this.arenaAsset.isSelected(hit.star.id);
+      const alreadySelected = this.arenaAsset.isSelected(star.id);
       if (shift) {
         if (alreadySelected) {
-          this.arenaAsset.removeSelection(hit.star.id);
-          this.selectionChain = this.selectionChain.filter((id) => id !== hit.star.id);
-          log("M_EVENT_CLICK", "Star deselected (toggle)", { star: hit.star.id });
+          this.arenaAsset.removeSelection(star.id);
+          this.selectionChain = this.selectionChain.filter((id) => id !== star.id);
+          log("M_EVENT_CLICK", "Star deselected (toggle)", { star: star.id });
         } else {
-          this.arenaAsset.addSelection(hit.star.id);
-          this.selectionChain.push(hit.star.id);
-          log("M_EVENT_CLICK", "Star selected (toggle)", { star: hit.star.id });
+          this.arenaAsset.addSelection(star.id);
+          this.selectionChain.push(star.id);
+          log("M_EVENT_CLICK", "Star selected (toggle)", { star: star.id });
         }
       } else {
-        this.selectionChain.push(hit.star.id);
-        this.arenaAsset.addSelection(hit.star.id);
+        this.selectionChain.push(star.id);
+        this.arenaAsset.addSelection(star.id);
       }
       const now = performance.now();
-      log("M_EVENT_CLICK", "Star pointerdown", { star: hit.star.id, button: event.button });
-      if (this.lastStarClick.id === hit.star.id && now - this.lastStarClick.time < 350) {
-        log("M_EVENT_CLICK", "Star double-click", { star: hit.star.id });
+      log("M_EVENT_CLICK", "Star pointerdown", { star: star.id, button: event.button });
+      if (this.lastStarClick.id === star.id && now - this.lastStarClick.time < 350) {
+        log("M_EVENT_CLICK", "Star double-click", { star: star.id });
+        this.onStarDoubleClick?.(new Vector3(star.position.x, star.position.y, star.position.z));
       }
-      this.lastStarClick = { id: hit.star.id, time: now };
-      this.onStarSelect?.(hit.star);
+      this.lastStarClick = { id: star.id, time: now };
+      this.onStarSelect?.(star);
       this.setCursor(true);
       this.consume(event);
       return;
@@ -196,10 +200,11 @@ export class SceneInteraction {
   private onContextMenu(event: PointerEvent) {
     this.updateRay(event);
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
-    if (hit && hit.star) {
+    const star = hit?.star;
+    if (star) {
       this.consume(event);
-      this.showContextMenu(event.clientX, event.clientY, hit.star.id);
-      log("M_EVENT_CLICK", "Star context menu", { star: hit.star.id });
+      this.showContextMenu(event.clientX, event.clientY, star.id);
+      log("M_EVENT_CLICK", "Star context menu", { star: star.id });
     }
   }
 

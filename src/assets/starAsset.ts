@@ -1,7 +1,7 @@
 import {
   BufferGeometry,
   Color,
-  CylinderGeometry,
+  EdgesGeometry,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -9,6 +9,7 @@ import {
   SphereGeometry,
   Vector3
 } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { PlanetModel, StarModel } from "../model/starModel";
 
 export class StarAsset {
@@ -38,23 +39,31 @@ export class StarAsset {
     });
     const mesh = new Mesh(this.createGeometryForStar(star), material);
     mesh.position.set(star.position.x, star.position.y, star.position.z);
+    if (star.id === "home-star") {
+      const edges = new EdgesGeometry(mesh.geometry);
+      const wire = new LineSegments(
+        edges,
+        new LineBasicMaterial({ color: new Color("#ffffff"), transparent: true, opacity: 0.7 })
+      );
+      mesh.add(wire);
+    }
     return mesh;
   }
 
   createSelectionMesh(star: StarModel, subwarpScale: number) {
-    // Enclose the full system: grow to the largest orbit (or subwarp grid) with margin.
-    const maxOrbit =
-      star.orbits && star.orbits.length > 0
-        ? Math.max(...star.orbits.map((o) => o.radius))
-        : star.radius * subwarpScale * 1.3;
-    const radiusX = maxOrbit * 1.1;
-    const radiusZ = maxOrbit * 1.1;
-    const radiusY = Math.max(star.radius * 1.5, maxOrbit * 0.2);
-
     let geom: BufferGeometry;
     if (star.id === "home-star") {
-      geom = new CylinderGeometry(radiusX, radiusX, radiusY * 2, 14);
+      // Use the same clustered shape as the home star, slightly inflated.
+      geom = this.createHomeClusterGeometry(star.radius * 1.1);
     } else {
+      // Enclose the full system: grow to the largest orbit (or subwarp grid) with margin.
+      const maxOrbit =
+        star.orbits && star.orbits.length > 0
+          ? Math.max(...star.orbits.map((o) => o.radius))
+          : star.radius * subwarpScale * 1.3;
+      const radiusX = maxOrbit * 1.1;
+      const radiusZ = maxOrbit * 1.1;
+      const radiusY = Math.max(star.radius * 1.5, maxOrbit * 0.2);
       const sphere = new SphereGeometry(1, 14, 14);
       sphere.scale(radiusX, radiusY, radiusZ);
       geom = sphere;
@@ -73,7 +82,7 @@ export class StarAsset {
 
   private createGeometryForStar(star: StarModel) {
     if (star.id === "home-star") {
-      return new CylinderGeometry(star.radius, star.radius, star.radius * 1.6, 14);
+      return this.createHomeClusterGeometry(star.radius);
     }
     const geom = this.geometry.clone();
     geom.scale(star.radius, star.radius, star.radius);
@@ -140,7 +149,7 @@ export class StarAsset {
   }
 
   createPlanetMesh(planet: PlanetModel, orbitRadius: number) {
-    const geom = new SphereGeometry(planet.radius, 10, 10);
+    const geom = new SphereGeometry(planet.radius * 1.5, 10, 10);
     const mat = new MeshStandardMaterial({
       color: new Color(planet.color),
       emissive: new Color(planet.color),
@@ -151,5 +160,43 @@ export class StarAsset {
     const mesh = new Mesh(geom, mat);
     mesh.position.set(orbitRadius, 0, 0);
     return mesh;
+  }
+
+  private createHomeClusterGeometry(radius: number) {
+    const sphereRadius = radius * 0.3;
+    const shellRadius = sphereRadius * 2; // ensure neighbors kiss the center sphere
+
+    const dirs: [number, number, number][] = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 1, 0],
+      [0, -1, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+      [1, 1, 1],
+      [1, 1, -1],
+      [1, -1, 1],
+      [1, -1, -1],
+      [-1, 1, 1],
+      [-1, 1, -1],
+      [-1, -1, 1],
+      [-1, -1, -1]
+    ];
+
+    const geoms: BufferGeometry[] = [];
+    const centerGeom = new SphereGeometry(sphereRadius, 14, 14);
+    geoms.push(centerGeom);
+
+    dirs.forEach(([x, y, z]) => {
+      const len = Math.hypot(x, y, z);
+      const nx = (x / len) * shellRadius;
+      const ny = (y / len) * shellRadius;
+      const nz = (z / len) * shellRadius;
+      const g = new SphereGeometry(sphereRadius, 14, 14);
+      g.translate(nx, ny, nz);
+      geoms.push(g);
+    });
+
+    return mergeGeometries(geoms, false) as BufferGeometry;
   }
 }

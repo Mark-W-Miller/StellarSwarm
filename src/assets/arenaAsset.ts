@@ -8,7 +8,15 @@ type StarInstance = {
   mesh: Mesh;
   selection?: Mesh;
   subwarp?: LineSegments;
-  planets?: { orbitRadius: number; mesh: Mesh; angularSpeed: number; angle: number; group: Group }[];
+  planets?: {
+    orbitRadius: number;
+    mesh: Mesh;
+    angularSpeed: number;
+    angle: number;
+    group: Group;
+    majorAxis: number;
+    minorAxis: number;
+  }[];
 };
 
 export class ArenaAsset {
@@ -36,8 +44,11 @@ export class ArenaAsset {
 
   addStar(star: StarModel) {
     const mesh = this.starAsset.createMesh(star);
+    const initialRot = Math.random() * Math.PI * 2;
+    mesh.rotation.y = initialRot;
     this.group.add(mesh);
     const subwarp = this.starAsset.createSubwarpGrid(star, this.subwarpScale, this.subwarpSpokes);
+    subwarp.rotation.y = initialRot;
     subwarp.position.set(star.position.x, star.position.y, star.position.z);
     this.group.add(subwarp);
     const planets = this.buildPlanets(star);
@@ -64,18 +75,14 @@ export class ArenaAsset {
       const dist = mesh.position.distanceTo(this.camera.position);
       const intensity = Math.max(0.3, 1 / Math.max(1, dist));
       this.starAsset.tick(model, mesh, intensity);
-      if (subwarp) {
-        const baseSpeed = this.spinLookup.get(model.id) ?? this.starAsset.getSpinSpeed(model);
-        const speed = baseSpeed * this.spinRateFactor;
-        subwarp.rotation.y += speed;
-      }
       if (planets && planets.length > 0) {
         planets.forEach((p) => {
-          p.angle = (p.angle + p.angularSpeed * this.spinRateFactor) % (Math.PI * 2);
-          const group = p.mesh.userData.planetGroup as Group;
-          if (group) {
-            group.rotation.y = p.angle;
-          }
+          // Planet orbits advance at a steady rate; then inherit the system (star) rotation.
+          p.angle = (p.angle + Math.abs(p.angularSpeed)) % (Math.PI * 2);
+          const x = p.majorAxis * Math.cos(p.angle);
+          const z = p.minorAxis * Math.sin(p.angle);
+          const pos = new Vector3(x, 0, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
+          p.mesh.position.copy(pos);
         });
       }
     });
@@ -152,7 +159,15 @@ export class ArenaAsset {
   }
 
   private buildPlanets(star: StarModel) {
-    const planets: { orbitRadius: number; mesh: Mesh; angularSpeed: number; angle: number; group: Group }[] = [];
+    const planets: {
+      orbitRadius: number;
+      mesh: Mesh;
+      angularSpeed: number;
+      angle: number;
+      group: Group;
+      majorAxis: number;
+      minorAxis: number;
+    }[] = [];
     const halfBounds = Math.sqrt(
       this.model.half.x * this.model.half.x +
         this.model.half.y * this.model.half.y +
@@ -171,12 +186,19 @@ export class ArenaAsset {
       const planetGroup = new Group();
       planetGroup.position.set(star.position.x, star.position.y, star.position.z);
       planetGroup.add(planetMesh);
+      const speedScale =
+        star.orbits && star.orbits.length > 0 ? 1 + (star.orbits.length - idx) * 0.25 : 1;
+      const angularSpeed = orbit.planet.angularSpeed * speedScale;
+      const majorAxis = orbit.radius * 0.8;
+      const minorAxis = majorAxis * (0.7 / 1.3); // match subwarp flatten ratio
       planets.push({
         orbitRadius: orbit.radius,
         mesh: planetMesh,
-        angularSpeed: orbit.planet.angularSpeed,
+        angularSpeed,
         angle: orbit.planet.angle,
-        group: planetGroup
+        group: planetGroup,
+        majorAxis,
+        minorAxis
       });
     });
     return planets;
