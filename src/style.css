@@ -240,6 +240,28 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
 }
 
+.home-overlay__center {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.home-overlay__center-btn {
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: #1f2937;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.home-overlay__center-btn.active {
+  background: #ea580c;
+  border-color: #fdba74;
+  color: #fff7ed;
+}
+
 .home-overlay__cell {
   border: 1px solid #1f2937;
   border-radius: 4px;

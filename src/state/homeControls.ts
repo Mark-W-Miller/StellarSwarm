@@ -1,6 +1,6 @@
 import type { HomeControlModel, StarModel } from "../model/starModel";
 
-type Listener = (controls: ControlState[]) => void;
+type Listener = (state: { controls: ControlState[]; centerActive: boolean }) => void;
 
 export type ControlState = HomeControlModel & {
   starId: string;
@@ -11,6 +11,7 @@ export type ControlState = HomeControlModel & {
 class HomeControlStore {
   private controls = new Map<string, ControlState>();
   private listeners = new Set<Listener>();
+  private centerActive = false;
 
   initFromStar(star: StarModel | null | undefined) {
     this.controls.clear();
@@ -26,6 +27,15 @@ class HomeControlStore {
       });
     }
     this.notify();
+  }
+
+  setCenterActive(active: boolean) {
+    this.centerActive = active;
+    this.notify();
+  }
+
+  getCenterActive() {
+    return this.centerActive;
   }
 
   markClicked(controlId: string) {
@@ -45,7 +55,10 @@ class HomeControlStore {
   }
 
   getState() {
-    return Array.from(this.controls.values());
+    return {
+      controls: Array.from(this.controls.values()),
+      centerActive: this.centerActive
+    };
   }
 
   subscribe(listener: Listener) {

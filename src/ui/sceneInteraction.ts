@@ -115,8 +115,10 @@ export class SceneInteraction {
   private onPointerDown(event: PointerEvent) {
     this.updateRay(event);
     const controlHit = this.arenaAsset.intersectControls(this.raycaster)[0];
+    let handledControlId: string | null = null;
     if (controlHit) {
       this.handleControlClick(controlHit.controlId, controlHit.starId, event.button);
+      handledControlId = controlHit.controlId;
       if (controlHit.controlId !== CENTER_CONTROL_ID) {
         this.consume(event);
         return;
@@ -126,7 +128,7 @@ export class SceneInteraction {
     const star = hit?.star;
 
     const meshControlId = (hit?.mesh as Mesh | undefined)?.userData?.controlId as string | undefined;
-    if (meshControlId && star) {
+    if (meshControlId && star && meshControlId !== handledControlId) {
       this.handleControlClick(meshControlId, star.id, event.button);
       if (meshControlId !== CENTER_CONTROL_ID) {
         this.consume(event);

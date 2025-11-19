@@ -78,8 +78,21 @@ const cameraController = new CameraController(
   arenaModel.half,
   arenaAsset
 );
-// Place the camera in the positive corner, looking at origin.
-cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
+// Place the camera so it looks at the home star by default.
+const homeStar = arenaModel.stars.find((s) => s.id === HOME_STAR_ID);
+if (homeStar) {
+  const target = new Vector3(homeStar.position.x, homeStar.position.y, homeStar.position.z);
+  const corner = new Vector3(
+    homeStar.position.x >= 0 ? arenaModel.half.x : -arenaModel.half.x,
+    homeStar.position.y >= 0 ? arenaModel.half.y : -arenaModel.half.y,
+    homeStar.position.z >= 0 ? arenaModel.half.z : -arenaModel.half.z
+  );
+  const halfwayOffset = corner.clone().sub(target).multiplyScalar(0.5);
+  const cameraPos = target.clone().add(halfwayOffset);
+  cameraController.setPosition(cameraPos, target);
+} else {
+  cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
+}
 
 const sim = new GameSim();
 const gameManager = new GameManager();

@@ -61,7 +61,7 @@ export class ArenaAsset {
     if (model.stars.length > 0) {
       model.stars.forEach((star) => this.addStar(star));
     }
-    this.homeControlUnsub = homeControlStore.subscribe((controls) => this.syncHomeControls(controls));
+    this.homeControlUnsub = homeControlStore.subscribe(({ controls }) => this.syncHomeControls(controls));
   }
 
   addStar(star: StarModel) {

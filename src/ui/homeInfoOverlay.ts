@@ -18,11 +18,13 @@ export class HomeInfoOverlay {
   private summary: HTMLDivElement;
   private grid: HTMLDivElement;
   private details: HTMLDivElement;
+  private centerButton: HTMLButtonElement;
   private grip: HTMLDivElement;
   private state: OverlayState;
   private unsubscribe: (() => void) | null = null;
   private controls: ControlState[] = [];
   private selected: string | null = null;
+  private centerActive = false;
 
   constructor() {
     this.state = this.load();
@@ -57,12 +59,23 @@ export class HomeInfoOverlay {
     this.details = document.createElement("div");
     this.details.className = "home-overlay__details";
 
+    const centerWrap = document.createElement("div");
+    centerWrap.className = "home-overlay__center";
+    this.centerButton = document.createElement("button");
+    this.centerButton.type = "button";
+    this.centerButton.className = "home-overlay__center-btn";
+    this.centerButton.textContent = "Center Core";
+    this.centerButton.addEventListener("click", () => {
+      homeControlStore.setCenterActive(!this.centerActive);
+    });
+    centerWrap.appendChild(this.centerButton);
+
     this.grip = document.createElement("div");
     this.grip.className = "home-overlay__grip";
 
     const body = document.createElement("div");
     body.className = "home-overlay__body";
-    body.append(this.summary, this.grid, this.details);
+    body.append(this.summary, centerWrap, this.grid, this.details);
 
     this.root.append(this.header, body, this.grip);
     document.body.appendChild(this.root);
@@ -70,7 +83,10 @@ export class HomeInfoOverlay {
     this.enableDrag();
     this.enableResize();
 
-    this.unsubscribe = homeControlStore.subscribe((controls) => this.render(controls));
+    this.unsubscribe = homeControlStore.subscribe(({ controls, centerActive }) => {
+      this.centerActive = centerActive;
+      this.render(controls);
+    });
   }
 
   toggle() {
@@ -110,6 +126,7 @@ export class HomeInfoOverlay {
       <div><strong>Controls:</strong> ${this.controls.length}</div>
       <div><strong>Activated:</strong> ${clicked}</div>
     `;
+    this.centerButton.classList.toggle("active", this.centerActive);
     this.renderGrid();
     this.renderDetails();
   }
