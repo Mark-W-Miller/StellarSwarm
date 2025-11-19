@@ -15,6 +15,7 @@ import { createArenaModel, populateArenaModel, tickArenaModel } from "./model/ar
 import type { ArenaModel } from "./model/arenaModel";
 import { CameraController } from "./ui/camera";
 import { GameSim } from "./engine/sim";
+import { GameManager } from "./engine/gameManager";
 import { LogOverlay } from "./ui/log/logOverlay";
 import { logStartup, log } from "./ui/log/logger";
 import type { StarModel } from "./model/starModel";
@@ -79,6 +80,7 @@ const cameraController = new CameraController(
 cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
 
 const sim = new GameSim();
+const gameManager = new GameManager();
 const logOverlay = new LogOverlay();
 const logToggle = document.createElement("button");
 logToggle.className = "log-toggle";

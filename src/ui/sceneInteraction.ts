@@ -1,5 +1,6 @@
 import { Camera, Mesh, Raycaster, Vector2, Vector3 } from "three";
 import { log } from "./log/logger";
+import { eventBus } from "../engine/eventBus";
 import type { ArenaAsset } from "../assets/arenaAsset";
 
 type DragState =
@@ -111,6 +112,21 @@ export class SceneInteraction {
 
   private onPointerDown(event: PointerEvent) {
     this.updateRay(event);
+    const controlHit = this.arenaAsset.intersectControls(this.raycaster)[0];
+    if (controlHit) {
+      log("COMMAND_DETECT", "Control sphere click", {
+        control: controlHit.controlId,
+        star: controlHit.starId,
+        button: event.button
+      });
+      eventBus.emit("control-click", {
+        type: "control-click",
+        starId: controlHit.starId,
+        controlId: controlHit.controlId
+      });
+      this.consume(event);
+      return;
+    }
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
     const star = hit?.star;
 

@@ -3,6 +3,7 @@ import type { ArenaModel } from "../model/arenaModel";
 import type { StarModel } from "../model/starModel";
 import { HOME_STAR_ID } from "../model/starModel";
 import { StarAsset } from "./starAsset";
+import { HomeStarAsset } from "./homeStarAsset";
 import { log } from "../ui/log/logger";
 
 type PlanetInstance = {
@@ -23,6 +24,7 @@ type StarInstance = {
   systemSpeed: number;
   selection?: Mesh;
   subwarp?: Group;
+  homeAsset?: HomeStarAsset;
   planets?: {
     orbitRadius: number;
     mesh: Mesh;
@@ -40,12 +42,12 @@ export class ArenaAsset {
   private stars: StarInstance[] = [];
   private starAsset: StarAsset;
   private starMap = new Map<Mesh, StarModel>();
+  private controlMap = new Map<Mesh, { starId: string; controlId: string }>();
   private cornerMarkers: Mesh[] = [];
   private subwarpScale = 4;
   private subwarpSpokes = 12;
   private spinRateFactor = 1;
   private spinLookup = new Map<string, number>();
-  private homePlanetMeshes = new Map<Mesh, { starId: string; planetId: string }>();
 
   constructor(private model: ArenaModel, private camera: Camera) {
     this.group = new Group();
@@ -60,10 +62,34 @@ export class ArenaAsset {
   }
 
   addStar(star: StarModel) {
-    const mesh = this.starAsset.createMesh(star);
+    let mesh: Mesh;
+    let homeAsset: HomeStarAsset | undefined;
+    let subwarp: Group;
+    const orbitColors = star.orbits?.map((o) => (o.planet ? o.planet.color : star.color)) ?? undefined;
+    const orbitRadii = star.orbits?.map((o) => o.radius);
+    if (star.id === HOME_STAR_ID) {
+      homeAsset = new HomeStarAsset(star);
+      mesh = homeAsset.mesh;
+      subwarp =
+        homeAsset.buildOrbitGeometry(star, this.subwarpScale, this.subwarpSpokes, orbitColors, orbitRadii) ??
+        new Group();
+      homeAsset
+        .getControlMeshes()
+        .forEach(({ mesh: ctrlMesh, id }) => this.controlMap.set(ctrlMesh, { starId: star.id, controlId: id }));
+    } else {
+      mesh = this.starAsset.createMesh(star);
+      subwarp = this.starAsset.createSubwarpGrid(
+        star,
+        this.subwarpScale,
+        this.subwarpSpokes,
+        orbitColors,
+        orbitRadii
+      );
+    }
     const initialRot = Math.random() * Math.PI * 2;
     // One full rotation per minute at 10 ticks/sec => 2π / (60*10) per tick.
     const systemSpeed = (Math.PI * 2 * (Math.random() > 0.5 ? 1 : -1)) / (60 * 10);
+    mesh.position.set(star.position.x, star.position.y, star.position.z);
     mesh.rotation.y = initialRot;
     this.group.add(mesh);
     log("ARENA_ASSET_INIT", JSON.stringify({
@@ -77,21 +103,12 @@ export class ArenaAsset {
         planet: o.planet ? { id: o.planet.id, color: o.planet.color, radius: o.planet.radius } : null
       }))
     }, null, 2));
-    const orbitColors = star.orbits?.map((o) => (o.planet ? o.planet.color : star.color)) ?? undefined;
-    const orbitRadii = star.orbits?.map((o) => o.radius);
-    const subwarp = this.starAsset.createSubwarpGrid(
-      star,
-      this.subwarpScale,
-      this.subwarpSpokes,
-      orbitColors,
-      orbitRadii
-    );
     subwarp.rotation.y = initialRot;
     subwarp.position.set(star.position.x, star.position.y, star.position.z);
     this.group.add(subwarp);
     const planets = this.buildPlanets(star);
     planets.forEach((p) => this.group.add(p.group));
-    this.stars.push({ model: star, mesh, subwarp, planets, systemSpeed });
+    this.stars.push({ model: star, mesh, subwarp, planets, systemSpeed, homeAsset });
     this.starMap.set(mesh, star);
     this.spinLookup.set(star.id, this.starAsset.getSpinSpeed(star));
   }
@@ -105,6 +122,7 @@ export class ArenaAsset {
     });
     this.stars = [];
     this.starMap.clear();
+    this.controlMap.clear();
     nextStars.forEach((star) => this.addStar(star));
   }
 
@@ -129,10 +147,16 @@ export class ArenaAsset {
   }
 
   tick() {
-    this.stars.forEach(({ model: starModel, mesh, subwarp, planets, systemSpeed }) => {
+    this.stars.forEach((instance) => {
+      const { model: starModel, mesh, subwarp, planets, systemSpeed, homeAsset } = instance;
       const dist = mesh.position.distanceTo(this.camera.position);
       const intensity = Math.max(0.3, 1 / Math.max(1, dist));
-      this.starAsset.tick(starModel, mesh, intensity);
+      const level = Math.max(0, Math.min(1, starModel.brightness));
+      if (homeAsset) {
+        homeAsset.updateBrightness(level);
+      } else {
+        this.starAsset.tick(starModel, mesh, intensity);
+      }
       mesh.rotation.y += systemSpeed;
       if (subwarp) {
         subwarp.rotation.y = mesh.rotation.y;
@@ -182,6 +206,19 @@ export class ArenaAsset {
       mesh: hit.object as Mesh,
       star: this.starMap.get(hit.object as Mesh)
     }));
+  }
+
+  intersectControls(raycaster: Raycaster) {
+    if (this.controlMap.size === 0) return [];
+    const targets = Array.from(this.controlMap.keys());
+    const hits = raycaster.intersectObjects(targets, false);
+    return hits
+      .map((hit) => {
+        const info = this.controlMap.get(hit.object as Mesh);
+        if (!info) return null;
+        return { mesh: hit.object as Mesh, starId: info.starId, controlId: info.controlId };
+      })
+      .filter((entry): entry is { mesh: Mesh; starId: string; controlId: string } => Boolean(entry));
   }
 
   addSelection(starId: string) {
@@ -235,23 +272,23 @@ export class ArenaAsset {
   }
 
   private refreshSubwarp() {
-    this.homePlanetMeshes.clear();
     this.stars.forEach((s) => {
       if (s.subwarp) this.group.remove(s.subwarp);
-      s.planets?.forEach((p) => this.group.remove(p.group));
       const orbitColors = s.model.orbits?.map((o) => (o.planet ? o.planet.color : s.model.color));
       const orbitRadii = s.model.orbits?.map((o) => o.radius);
-      const subwarp = this.starAsset.createSubwarpGrid(
-        s.model,
-        this.subwarpScale,
-        this.subwarpSpokes,
-        orbitColors,
-        orbitRadii
-      );
+      const subwarp =
+        s.model.id === HOME_STAR_ID && s.homeAsset
+          ? s.homeAsset.buildOrbitGeometry(s.model, this.subwarpScale, this.subwarpSpokes, orbitColors, orbitRadii) ??
+            new Group()
+          : this.starAsset.createSubwarpGrid(
+              s.model,
+              this.subwarpScale,
+              this.subwarpSpokes,
+              orbitColors,
+              orbitRadii
+            );
       subwarp.position.copy(s.mesh.position);
       s.subwarp = subwarp;
-      s.planets = this.buildPlanets(s.model);
-      s.planets?.forEach((p) => this.group.add(p.group));
       this.group.add(subwarp);
     });
   }
@@ -293,9 +330,6 @@ export class ArenaAsset {
         planeY,
         planetId: orbit.planet.id
       };
-      if (star.id === HOME_STAR_ID) {
-        this.homePlanetMeshes.set(planetMesh, { starId: star.id, planetId: orbit.planet.id });
-      }
       planets.push(planetEntry);
     });
     return planets;

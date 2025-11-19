@@ -108,7 +108,8 @@ function addHomeStar(arena: ArenaModel) {
     brightness: 1,
     brightnessControl: 1,
     phase: rand() * Math.PI * 2,
-    orbits: buildOrbits(18, true, true)
+    orbits: buildOrbits(18, true, true),
+    controls: createHomeControls(18)
   };
   star.orbits?.forEach((o, orbitIdx) => {
     if (o.hasPlanet) {
@@ -235,5 +236,36 @@ function applyDistanceBrightness(arena: ArenaModel) {
     let normalized = max === min ? 1 : 1 - (distances[idx] - min) / (max - min);
     const quantized = Math.floor(normalized * 15) / 15;
     star.brightness = quantized;
+  });
+}
+
+function createHomeControls(radius: number) {
+  const dirs: [number, number, number][] = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+    [0, 0, 1],
+    [0, 0, -1],
+    [1, 1, 1],
+    [1, 1, -1],
+    [1, -1, 1],
+    [1, -1, -1],
+    [-1, 1, 1],
+    [-1, 1, -1],
+    [-1, -1, 1],
+    [-1, -1, -1]
+  ];
+  const shell = radius * 0.9;
+  return dirs.map((dir, idx) => {
+    const len = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+    return {
+      id: `CTRL-${idx + 1}`,
+      position: {
+        x: (dir[0] / len) * shell,
+        y: (dir[1] / len) * shell,
+        z: (dir[2] / len) * shell
+      }
+    };
   });
 }

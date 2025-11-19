@@ -1,3 +1,8 @@
+export type HomeControlModel = {
+  id: string;
+  position: { x: number; y: number; z: number };
+};
+
 export type StarModel = {
   id: string;
   position: { x: number; y: number; z: number };
@@ -7,6 +12,7 @@ export type StarModel = {
   brightnessControl: number;
   phase: number; // for glow animation
   orbits?: Array<{ radius: number; hasPlanet: boolean; planet?: PlanetModel }>;
+  controls?: HomeControlModel[];
 };
 
 export type PlanetModel = {
