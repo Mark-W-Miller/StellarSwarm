@@ -1,4 +1,5 @@
 import type { HomeControlModel, StarModel } from "../model/starModel";
+import { log } from "../ui/log/logger";
 
 type Listener = (state: { controls: ControlState[]; centerActive: boolean }) => void;
 
@@ -16,6 +17,18 @@ class HomeControlStore {
   initFromStar(star: StarModel | null | undefined) {
     this.controls.clear();
     if (star?.controls) {
+      log(
+        "GAME",
+        "Initializing home controls",
+        JSON.stringify(
+          {
+            star: star.id,
+            controls: star.controls
+          },
+          null,
+          2
+        )
+      );
       star.controls.forEach((ctrl, idx) => {
         const id = ctrl.id ?? `CTRL-${idx + 1}`;
         this.controls.set(id, {
@@ -40,7 +53,16 @@ class HomeControlStore {
 
   markClicked(controlId: string) {
     const ctrl = this.controls.get(controlId);
+    log("GAME", "Control lookup", {
+      control: controlId,
+      state: ctrl ?? null
+    });
     if (!ctrl) return;
+    log("GAME", "Control marked clicked", {
+      control: controlId,
+      star: ctrl.starId,
+      time: ctrl.lastClickedAt
+    });
     ctrl.clicked = true;
     ctrl.lastClickedAt = Date.now();
     this.notify();

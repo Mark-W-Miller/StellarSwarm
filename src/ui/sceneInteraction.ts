@@ -31,7 +31,7 @@ export class SceneInteraction {
     private camera: Camera,
     private arenaAsset: ArenaAsset,
     private onCornerDoubleClick?: (pos: Vector3) => void,
-    private onStarSelect?: (star: any) => void,
+  private onStarSelect?: (star: any) => void,
     private onStarDoubleClick?: (pos: Vector3) => void,
     private isCameraDragging?: () => boolean
   ) {
@@ -192,6 +192,7 @@ export class SceneInteraction {
         log("M_EVENT_CLICK", "Selection chain ended", { chain: this.selectionChain });
         this.selectionChain = [];
       }
+      this.onStarSelect?.(null);
       this.setCursor(false);
     }
 

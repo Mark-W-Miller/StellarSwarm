@@ -113,7 +113,8 @@ gameManager.setHomeStar(arenaModel.stars.find((s) => s.id === HOME_STAR_ID));
 
 const seedPanel = document.createElement("div");
 seedPanel.className = "seed-panel";
-seedPanel.style.display = "flex";
+const hudVisible = readSetting("hud:panelVisible", 1) === 1;
+seedPanel.style.display = hudVisible ? "flex" : "none";
 
 const starsLabel = document.createElement("label");
 starsLabel.textContent = "Stars:";
@@ -234,7 +235,9 @@ seedToggle.className = "log-toggle";
 seedToggle.style.right = "60px";
 seedToggle.textContent = "HUD";
 seedToggle.addEventListener("click", () => {
-  seedPanel.style.display = seedPanel.style.display === "none" ? "flex" : "none";
+  const nextVisible = seedPanel.style.display === "none";
+  seedPanel.style.display = nextVisible ? "flex" : "none";
+  persistSetting("hud:panelVisible", nextVisible ? 1 : 0);
 });
 document.body.appendChild(seedToggle);
 logStartup();
@@ -256,9 +259,7 @@ const sceneInteraction = new SceneInteraction(
     cameraController.setPosition(pos);
   },
   (star) => {
-    if (star) {
-      starInfoPanel.show(star);
-    }
+    starInfoPanel.setStar(star ?? null);
   },
   (pos) => {
     cameraController.focusOn(pos);

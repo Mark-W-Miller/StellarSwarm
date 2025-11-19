@@ -173,15 +173,7 @@ class Logger {
   }
 
   private installConsoleForwarders() {
-    if (this.forwardConsole) {
-      (["log", "info", "debug", "warn", "error"] as const).forEach((level) => {
-        const original = (originalConsole as any)[level];
-        (console as any)[level] = (...args: unknown[]) => {
-          this.log(`console:${level}`, "console", ...args);
-          original.apply(console, args as any);
-        };
-      });
-    }
+    // console forwarding disabled
   }
 
   private installErrorHandlers() {
