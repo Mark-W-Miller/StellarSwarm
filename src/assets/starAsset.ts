@@ -46,6 +46,11 @@ export class StarAsset {
     const geom = isHome ? this.createHomeClusterGeometry(star.radius) : this.createGeometryForStar(star);
     const mesh = new Mesh(geom, material);
     mesh.position.set(star.position.x, star.position.y, star.position.z);
+    if (isHome) {
+      const edges = new EdgesGeometry(mesh.geometry);
+      const wire = new LineSegments(edges, new LineBasicMaterial({ color: new Color("#000000"), transparent: true, opacity: 0.9 }));
+      mesh.add(wire);
+    }
     return mesh;
   }
 
