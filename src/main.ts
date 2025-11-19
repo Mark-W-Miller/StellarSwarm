@@ -16,7 +16,7 @@ import type { ArenaModel } from "./model/arenaModel";
 import { CameraController } from "./ui/camera";
 import { GameSim } from "./engine/sim";
 import { LogOverlay } from "./ui/log/logOverlay";
-import { logStartup } from "./ui/log/logger";
+import { logStartup, log } from "./ui/log/logger";
 import type { StarModel } from "./model/starModel";
 import { SceneInteraction } from "./ui/sceneInteraction";
 import { StarInfoPanel } from "./ui/starInfo";
@@ -116,6 +116,16 @@ spokesInput.step = "1";
 spokesInput.value = `${readSetting("hud:spokes", 12)}`;
 spokesLabel.appendChild(spokesInput);
 
+const brightLabel = document.createElement("label");
+brightLabel.textContent = "Selected brightness:";
+const brightInput = document.createElement("input");
+brightInput.type = "range";
+brightInput.min = "0";
+brightInput.max = "1";
+brightInput.step = "0.05";
+brightInput.value = "1";
+brightLabel.appendChild(brightInput);
+
 const simSpeedLabel = document.createElement("label");
 simSpeedLabel.textContent = "Sim speed (1-60):";
 const simSpeedInput = document.createElement("input");
@@ -185,7 +195,13 @@ attenInput.addEventListener("change", () => {
   arenaAsset.setAttenuation(attenuation);
 });
 
-seedPanel.append(starsLabel, gridLabel, spokesLabel, simSpeedLabel, attenLabel, seedButton);
+brightInput.addEventListener("input", () => {
+  const val = Number(brightInput.value);
+  arenaAsset.setBrightnessForAll(val);
+  log("UI", "Brightness changed", { value: val });
+});
+
+seedPanel.append(starsLabel, gridLabel, spokesLabel, simSpeedLabel, attenLabel, brightLabel, seedButton);
 document.body.appendChild(seedPanel);
 
 const seedToggle = document.createElement("button");

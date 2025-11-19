@@ -106,6 +106,7 @@ function addHomeStar(arena: ArenaModel) {
     radius: 18,
     color: "#22c55e",
     brightness: 1,
+    brightnessControl: 1,
     phase: rand() * Math.PI * 2,
     orbits: buildOrbits(18, true, true)
   };
@@ -162,6 +163,7 @@ function addRandomStars(arena: ArenaModel, count: number, subwarpScale: number, 
       radius: isGrey ? radius * 1.4 : radius,
       color,
       brightness: isGrey ? 1.2 : 0.4 + rand() * 0.6,
+      brightnessControl: 1,
       phase: rand() * Math.PI * 2,
       orbits: buildOrbits(radius, !isGrey)
     };

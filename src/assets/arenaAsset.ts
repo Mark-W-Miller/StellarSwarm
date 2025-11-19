@@ -95,14 +95,21 @@ export class ArenaAsset {
     nextStars.forEach((star) => this.addStar(star));
   }
 
+  setBrightnessForAll(value: number) {
+    this.stars.forEach((s) => {
+      s.model.brightness = value;
+    });
+  }
+
   tick() {
-    this.stars.forEach(({ model, mesh, subwarp, planets, systemSpeed }) => {
+    this.stars.forEach(({ model: starModel, mesh, subwarp, planets, systemSpeed }) => {
       const dist = mesh.position.distanceTo(this.camera.position);
       const intensity = Math.max(0.3, 1 / Math.max(1, dist));
-      this.starAsset.tick(model, mesh, intensity);
+      this.starAsset.tick(starModel, mesh, intensity);
       mesh.rotation.y += systemSpeed;
       if (subwarp) {
         subwarp.rotation.y = mesh.rotation.y;
+        this.applySubwarpBrightness(subwarp, starModel.brightness);
       }
       if (planets && planets.length > 0) {
         planets.forEach((p) => {
@@ -112,7 +119,32 @@ export class ArenaAsset {
           const z = p.minorAxis * Math.sin(p.angle);
           const pos = new Vector3(x, p.planeY, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
           p.mesh.position.copy(pos);
+          const pm = p.mesh.material as MeshStandardMaterial;
+          const baseColor = (p.mesh.userData.baseColor as any as Color) ?? pm.color;
+          const level = Math.max(0, Math.min(1, starModel.brightness));
+          pm.emissiveIntensity = level;
+          pm.color.copy(baseColor).multiplyScalar(level);
+          pm.emissive.copy(baseColor);
+          pm.opacity = level;
+          pm.transparent = true;
+          pm.needsUpdate = true;
         });
+      }
+    });
+  }
+
+  private applySubwarpBrightness(subwarp: Group, level: number) {
+    subwarp.traverse((obj) => {
+      const m = (obj as Mesh).material as MeshStandardMaterial;
+      if (m && (obj as Mesh).isMesh) {
+        const base = ((obj as any).userData?.baseColor as Color) ?? m.color;
+        const lvl = Math.max(0, Math.min(1, level));
+        m.emissiveIntensity = lvl;
+        m.color.copy(base).multiplyScalar(lvl);
+        m.emissive.copy(base);
+        m.opacity = lvl;
+        m.transparent = true;
+        m.needsUpdate = true;
       }
     });
   }

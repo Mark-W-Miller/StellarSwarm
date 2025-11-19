@@ -4,6 +4,7 @@ export type StarModel = {
   radius: number;
   color: string;
   brightness: number;
+  brightnessControl: number;
   phase: number; // for glow animation
   orbits?: Array<{ radius: number; hasPlanet: boolean; planet?: PlanetModel }>;
 };

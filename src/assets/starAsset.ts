@@ -79,9 +79,12 @@ export class StarAsset {
   }
 
   tick(star: StarModel, mesh: Mesh, atten = 1) {
-    const intensity = atten * star.brightness * (0.6 + 0.4 * Math.sin(star.phase));
+    const level = Math.max(0, Math.min(1, star.brightness));
     const mat = mesh.material as MeshStandardMaterial;
-    mat.emissiveIntensity = intensity;
+    mat.emissiveIntensity = level;
+    mat.emissive.set(star.color);
+    mat.color.set(star.color).multiplyScalar(level);
+    mat.needsUpdate = true;
   }
 
   private createGeometryForStar(star: StarModel) {
@@ -89,7 +92,8 @@ export class StarAsset {
       return this.createHomeClusterGeometry(star.radius);
     }
     const geom = this.geometry.clone();
-    geom.scale(star.radius, star.radius, star.radius);
+    const scale = star.radius * 0.6; // shrink non-home stars for display only
+    geom.scale(scale, scale, scale);
     return geom;
   }
 
@@ -171,13 +175,15 @@ export class StarAsset {
     const len = dir.length();
     const geom = new CylinderGeometry(radius, radius, len, 10, 1, true);
     const mat = new MeshStandardMaterial({
-      color,
-      emissive: color,
+      color: color.clone(),
+      emissive: color.clone(),
       emissiveIntensity: 0.8,
       roughness: 0.25,
-      metalness: 0.1
+      metalness: 0.1,
+      transparent: true
     });
     const mesh = new Mesh(geom, mat);
+    mesh.userData.baseColor = color.clone();
     // Orient cylinder along dir (default cylinder is Y-up centered at origin)
     const midpoint = new Vector3().addVectors(start, end).multiplyScalar(0.5);
     mesh.position.copy(midpoint);
@@ -196,15 +202,18 @@ export class StarAsset {
 
   createPlanetMesh(planet: PlanetModel, orbitRadius: number) {
     const geom = new SphereGeometry(planet.radius * 1.5, 10, 10);
+    const baseColor = new Color(planet.color);
     const mat = new MeshStandardMaterial({
-      color: new Color(planet.color),
-      emissive: new Color(planet.color),
+      color: baseColor.clone(),
+      emissive: baseColor.clone(),
       emissiveIntensity: 1,
       roughness: 0.6,
-      metalness: 0.1
+      metalness: 0.1,
+      transparent: true
     });
     const mesh = new Mesh(geom, mat);
     mesh.position.set(orbitRadius, 0, 0);
+    mesh.userData.baseColor = baseColor;
     return mesh;
   }
 
