@@ -5,6 +5,7 @@ import { HOME_STAR_ID } from "../model/starModel";
 import { StarAsset } from "./starAsset";
 import { HomeStarAsset } from "./homeStarAsset";
 import { log } from "../ui/log/logger";
+import { homeControlStore, type ControlState } from "../state/homeControls";
 
 type PlanetInstance = {
   orbitRadius: number;
@@ -48,6 +49,7 @@ export class ArenaAsset {
   private subwarpSpokes = 12;
   private spinRateFactor = 1;
   private spinLookup = new Map<string, number>();
+  private homeControlUnsub?: () => void;
 
   constructor(private model: ArenaModel, private camera: Camera) {
     this.group = new Group();
@@ -59,6 +61,7 @@ export class ArenaAsset {
     if (model.stars.length > 0) {
       model.stars.forEach((star) => this.addStar(star));
     }
+    this.homeControlUnsub = homeControlStore.subscribe((controls) => this.syncHomeControls(controls));
   }
 
   addStar(star: StarModel) {
@@ -219,6 +222,12 @@ export class ArenaAsset {
         return { mesh: hit.object as Mesh, starId: info.starId, controlId: info.controlId };
       })
       .filter((entry): entry is { mesh: Mesh; starId: string; controlId: string } => Boolean(entry));
+  }
+
+  private syncHomeControls(controls: ControlState[]) {
+    const home = this.stars.find((s) => s.homeAsset);
+    if (!home?.homeAsset) return;
+    home.homeAsset.syncControlHighlights(controls);
   }
 
   addSelection(starId: string) {

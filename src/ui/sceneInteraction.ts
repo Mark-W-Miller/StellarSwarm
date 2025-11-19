@@ -1,6 +1,8 @@
 import { Camera, Mesh, Raycaster, Vector2, Vector3 } from "three";
 import { log } from "./log/logger";
 import { eventBus } from "../engine/eventBus";
+
+const CENTER_CONTROL_ID = "CTRL-CENTER";
 import type { ArenaAsset } from "../assets/arenaAsset";
 
 type DragState =
@@ -114,21 +116,23 @@ export class SceneInteraction {
     this.updateRay(event);
     const controlHit = this.arenaAsset.intersectControls(this.raycaster)[0];
     if (controlHit) {
-      log("COMMAND_DETECT", "Control sphere click", {
-        control: controlHit.controlId,
-        star: controlHit.starId,
-        button: event.button
-      });
-      eventBus.emit("control-click", {
-        type: "control-click",
-        starId: controlHit.starId,
-        controlId: controlHit.controlId
-      });
-      this.consume(event);
-      return;
+      this.handleControlClick(controlHit.controlId, controlHit.starId, event.button);
+      if (controlHit.controlId !== CENTER_CONTROL_ID) {
+        this.consume(event);
+        return;
+      }
     }
     const hit = this.arenaAsset.intersectStars(this.raycaster)[0];
     const star = hit?.star;
+
+    const meshControlId = (hit?.mesh as Mesh | undefined)?.userData?.controlId as string | undefined;
+    if (meshControlId && star) {
+      this.handleControlClick(meshControlId, star.id, event.button);
+      if (meshControlId !== CENTER_CONTROL_ID) {
+        this.consume(event);
+        return;
+      }
+    }
 
     if (hit?.mesh && hit.mesh instanceof Mesh && this.cornersByMesh.has(hit.mesh)) {
       const pos = this.cornersByMesh.get(hit.mesh);
@@ -198,6 +202,19 @@ export class SceneInteraction {
         this.onCornerDoubleClick?.(pos);
       }
     }
+  }
+
+  private handleControlClick(controlId: string, starId: string, button: number) {
+    log("COMMAND_DETECT", "Control sphere click", {
+      control: controlId,
+      star: starId,
+      button
+    });
+    eventBus.emit("control-click", {
+      type: "control-click",
+      starId,
+      controlId
+    });
   }
 
   private onPointerUp(event: PointerEvent) {

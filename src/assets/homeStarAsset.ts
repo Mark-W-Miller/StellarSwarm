@@ -22,8 +22,11 @@ export class HomeStarAsset {
   orbitGroup?: Group;
   private controls: ControlMesh[] = [];
   private baseColor = new Color("#14532d");
+  private highlightColor = new Color("#facc15");
   private centerMaterial: MeshStandardMaterial;
   private readonly centerControlId = "CTRL-CENTER";
+  private highlighted = new Set<string>();
+  private lastBrightness = 1;
 
   constructor(star: StarModel) {
     const geom = new SphereGeometry(star.radius * 0.3, 24, 24);
@@ -72,12 +75,11 @@ export class HomeStarAsset {
 
   updateBrightness(level: number) {
     const clamped = Math.max(0, Math.min(1, level));
+    this.lastBrightness = clamped;
     this.centerMaterial.emissiveIntensity = clamped;
     this.centerMaterial.color.copy(this.baseColor).multiplyScalar(clamped);
     this.controls.forEach(({ mesh }) => {
-      const mat = mesh.material as MeshStandardMaterial;
-      mat.emissiveIntensity = clamped;
-      mat.color.copy(this.baseColor).multiplyScalar(clamped);
+      this.applyControlMaterial(mesh as Mesh, clamped);
     });
     if (this.orbitGroup) {
       this.orbitGroup.traverse((obj) => {
@@ -101,6 +103,38 @@ export class HomeStarAsset {
       { mesh: this.mesh, id: this.centerControlId },
       ...this.controls.map((ctrl) => ({ mesh: ctrl.mesh, id: ctrl.id }))
     ];
+  }
+
+  setControlHighlight(controlId: string, active: boolean) {
+    const ctrl = this.controls.find((c) => c.id === controlId);
+    if (!ctrl) return;
+    if (active) {
+      this.highlighted.add(controlId);
+    } else {
+      this.highlighted.delete(controlId);
+    }
+    this.applyControlMaterial(ctrl.mesh, this.lastBrightness);
+  }
+
+  syncControlHighlights(states: Array<{ id: string; clicked: boolean }>) {
+    const lookup = new Map(states.map((s) => [s.id, s.clicked]));
+    this.controls.forEach((ctrl) => {
+      const active = lookup.get(ctrl.id) ?? false;
+      if (active) this.highlighted.add(ctrl.id);
+      else this.highlighted.delete(ctrl.id);
+      this.applyControlMaterial(ctrl.mesh, this.lastBrightness);
+    });
+  }
+
+  private applyControlMaterial(mesh: Mesh, intensity: number) {
+    const ctrlId = mesh.userData.controlId as string | undefined;
+    const mat = mesh.material as MeshStandardMaterial;
+    if (!mat || !ctrlId) return;
+    const base = this.highlighted.has(ctrlId) ? this.highlightColor : this.baseColor;
+    mat.emissiveIntensity = intensity;
+    mat.color.copy(base).multiplyScalar(intensity);
+    mat.emissive.copy(base);
+    mat.needsUpdate = true;
   }
 
   private createOrbitGeometry(

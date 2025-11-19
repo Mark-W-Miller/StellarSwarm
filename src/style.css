@@ -58,6 +58,20 @@ body {
   cursor: pointer;
 }
 
+.home-info-toggle {
+  position: fixed;
+  top: 48px;
+  right: 10px;
+  z-index: 9999;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid #1f2937;
+  background: #0b1222;
+  color: #e1e6f0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 .log-overlay {
   position: fixed;
   z-index: 9999;
@@ -156,6 +170,125 @@ body {
   cursor: se-resize;
   border-right: 2px solid #3b82f6;
   border-bottom: 2px solid #3b82f6;
+  opacity: 0.7;
+}
+
+.home-overlay {
+  position: fixed;
+  z-index: 9999;
+  background: rgba(7, 10, 18, 0.92);
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  min-height: 240px;
+  color: #e1e6f0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+}
+
+.home-overlay__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #101728;
+  border-bottom: 1px solid #1f2937;
+  cursor: grab;
+  user-select: none;
+  font-weight: 600;
+}
+
+.home-overlay__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.home-overlay__btn {
+  background: #1f2937;
+  color: #e1e6f0;
+  border: 1px solid #2c3a52;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.home-overlay__btn:hover {
+  background: #26344b;
+}
+
+.home-overlay__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  height: 100%;
+}
+
+.home-overlay__summary {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.home-overlay__grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+}
+
+.home-overlay__cell {
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 8px 4px;
+  background: #0f172a;
+  color: #9ab4d6;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.home-overlay__cell.clicked {
+  background: #14532d;
+  color: #a7f3d0;
+  border-color: #22c55e;
+}
+
+.home-overlay__cell.selected {
+  box-shadow: 0 0 0 2px #3b82f6;
+}
+
+.home-overlay__details {
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 8px;
+  background: #0a0f1c;
+  min-height: 80px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.home-overlay__empty {
+  padding: 12px;
+  text-align: center;
+  color: #94a3b8;
+  border: 1px dashed #1f2937;
+  border-radius: 6px;
+}
+
+.home-overlay__grip {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 2px;
+  bottom: 2px;
+  cursor: se-resize;
+  border-right: 2px solid #22c55e;
+  border-bottom: 2px solid #22c55e;
   opacity: 0.7;
 }
 

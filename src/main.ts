@@ -19,8 +19,10 @@ import { GameManager } from "./engine/gameManager";
 import { LogOverlay } from "./ui/log/logOverlay";
 import { logStartup, log } from "./ui/log/logger";
 import type { StarModel } from "./model/starModel";
+import { HOME_STAR_ID } from "./model/starModel";
 import { SceneInteraction } from "./ui/sceneInteraction";
 import { StarInfoPanel } from "./ui/starInfo";
+import { HomeInfoOverlay } from "./ui/homeInfoOverlay";
 
 function clamp(val: number, min: number, max: number) {
   return Math.min(max, Math.max(min, val));
@@ -82,11 +84,19 @@ cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, a
 const sim = new GameSim();
 const gameManager = new GameManager();
 const logOverlay = new LogOverlay();
+const homeOverlay = new HomeInfoOverlay();
 const logToggle = document.createElement("button");
 logToggle.className = "log-toggle";
 logToggle.textContent = "Log";
 logToggle.addEventListener("click", () => logOverlay.toggle());
 document.body.appendChild(logToggle);
+
+const homeInfoToggle = document.createElement("button");
+homeInfoToggle.className = "home-info-toggle";
+homeInfoToggle.textContent = "Home Controls";
+homeInfoToggle.addEventListener("click", () => homeOverlay.toggle());
+document.body.appendChild(homeInfoToggle);
+gameManager.setHomeStar(arenaModel.stars.find((s) => s.id === HOME_STAR_ID));
 
 const seedPanel = document.createElement("div");
 seedPanel.className = "seed-panel";
@@ -319,4 +329,5 @@ start();
 function regenerateStars(count: number, subwarpScale: number) {
   populateArenaModel(arenaModel, count, subwarpScale);
   arenaAsset.resetStars(arenaModel.stars);
+  gameManager.setHomeStar(arenaModel.stars.find((s) => s.id === HOME_STAR_ID));
 }
