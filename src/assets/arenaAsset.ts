@@ -96,9 +96,23 @@ export class ArenaAsset {
   }
 
   setBrightnessForAll(value: number) {
-    this.stars.forEach((s) => {
-      s.model.brightness = value;
+    const home = this.stars.find((s) => s.model.id === HOME_STAR_ID) || this.stars[0];
+    if (!home) return;
+    const homePos = new Vector3(home.model.position.x, home.model.position.y, home.model.position.z);
+    const distances = this.stars.map((s) => {
+      const pos = new Vector3(s.model.position.x, s.model.position.y, s.model.position.z);
+      return pos.distanceTo(homePos);
     });
+    const min = Math.min(...distances);
+    const max = Math.max(...distances);
+    const logData: { id: string; distance: number; brightness: number }[] = [];
+    this.stars.forEach((s, idx) => {
+      let normalized = max === min ? 1 : 1 - (distances[idx] - min) / (max - min);
+      const quantized = Math.floor(normalized * 15) / 15;
+      s.model.brightness = quantized;
+      logData.push({ id: s.model.id, distance: distances[idx], brightness: quantized });
+    });
+    log("UI", "Brightness distribution", logData);
   }
 
   tick() {

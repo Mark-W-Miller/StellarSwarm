@@ -185,6 +185,7 @@ export function populateArenaModel(arena: ArenaModel, starCount: number, subwarp
   arena.stars = [];
   addHomeStar(arena);
   addRandomStars(arena, starCount, subwarpScale, 2);
+  applyDistanceBrightness(arena);
   log(
     "ARENA_INIT",
     JSON.stringify(
@@ -216,4 +217,23 @@ export function populateArenaModel(arena: ArenaModel, starCount: number, subwarp
       2
     )
   );
+}
+
+function applyDistanceBrightness(arena: ArenaModel) {
+  const home = arena.stars.find((s) => s.id === HOME_STAR_ID) || arena.stars[0];
+  if (!home) return;
+  const homePos = home.position;
+  const distances = arena.stars.map((s) => {
+    const dx = s.position.x - homePos.x;
+    const dy = s.position.y - homePos.y;
+    const dz = s.position.z - homePos.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  });
+  const min = Math.min(...distances);
+  const max = Math.max(...distances);
+  arena.stars.forEach((star, idx) => {
+    let normalized = max === min ? 1 : 1 - (distances[idx] - min) / (max - min);
+    const quantized = Math.floor(normalized * 15) / 15;
+    star.brightness = quantized;
+  });
 }
