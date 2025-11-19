@@ -34,23 +34,18 @@ export class StarAsset {
   }
 
   createMesh(star: StarModel) {
+    const isHome = star.id === HOME_STAR_ID;
+    const baseColor = new Color(isHome ? "#14532d" : star.color);
     const material = new MeshStandardMaterial({
-      color: new Color(star.color),
-      emissive: new Color(star.color),
+      color: baseColor.clone(),
+      emissive: baseColor.clone(),
       emissiveIntensity: star.brightness,
-      roughness: 0.25,
-      metalness: 0.05
+      roughness: isHome ? 0.95 : 0.25,
+      metalness: isHome ? 0.02 : 0.05
     });
-    const mesh = new Mesh(this.createGeometryForStar(star), material);
+    const geom = isHome ? this.createHomeClusterGeometry(star.radius) : this.createGeometryForStar(star);
+    const mesh = new Mesh(geom, material);
     mesh.position.set(star.position.x, star.position.y, star.position.z);
-    if (star.id === HOME_STAR_ID) {
-      const edges = new EdgesGeometry(mesh.geometry);
-      const wire = new LineSegments(
-        edges,
-        new LineBasicMaterial({ color: new Color("#ffffff"), transparent: true, opacity: 0.7 })
-      );
-      mesh.add(wire);
-    }
     return mesh;
   }
 
@@ -88,9 +83,6 @@ export class StarAsset {
   }
 
   private createGeometryForStar(star: StarModel) {
-    if (star.id === HOME_STAR_ID) {
-      return this.createHomeClusterGeometry(star.radius);
-    }
     const geom = this.geometry.clone();
     const scale = star.radius * 0.6; // shrink non-home stars for display only
     geom.scale(scale, scale, scale);

@@ -5,6 +5,18 @@ import { HOME_STAR_ID } from "../model/starModel";
 import { StarAsset } from "./starAsset";
 import { log } from "../ui/log/logger";
 
+type PlanetInstance = {
+  orbitRadius: number;
+  mesh: Mesh;
+  angularSpeed: number;
+  angle: number;
+  group: Group;
+  majorAxis: number;
+  minorAxis: number;
+  planeY: number;
+  planetId?: string;
+};
+
 type StarInstance = {
   model: StarModel;
   mesh: Mesh;
@@ -33,6 +45,7 @@ export class ArenaAsset {
   private subwarpSpokes = 12;
   private spinRateFactor = 1;
   private spinLookup = new Map<string, number>();
+  private homePlanetMeshes = new Map<Mesh, { starId: string; planetId: string }>();
 
   constructor(private model: ArenaModel, private camera: Camera) {
     this.group = new Group();
@@ -134,7 +147,7 @@ export class ArenaAsset {
           const pos = new Vector3(x, p.planeY, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
           p.mesh.position.copy(pos);
           const pm = p.mesh.material as MeshStandardMaterial;
-          const baseColor = (p.mesh.userData.baseColor as any as Color) ?? pm.color;
+          const baseColor = (p.mesh.userData.baseColor as Color) ?? pm.color.clone();
           const level = Math.max(0, Math.min(1, starModel.brightness));
           pm.emissiveIntensity = level;
           pm.color.copy(baseColor).multiplyScalar(level);
@@ -172,6 +185,7 @@ export class ArenaAsset {
   }
 
   addSelection(starId: string) {
+    if (starId === HOME_STAR_ID) return;
     const target = this.stars.find((s) => s.model.id === starId);
     if (!target || target.selection) return;
     const selection = this.starAsset.createSelectionMesh(target.model, this.subwarpScale);
@@ -221,6 +235,7 @@ export class ArenaAsset {
   }
 
   private refreshSubwarp() {
+    this.homePlanetMeshes.clear();
     this.stars.forEach((s) => {
       if (s.subwarp) this.group.remove(s.subwarp);
       s.planets?.forEach((p) => this.group.remove(p.group));
@@ -242,16 +257,7 @@ export class ArenaAsset {
   }
 
   private buildPlanets(star: StarModel) {
-    const planets: {
-      orbitRadius: number;
-      mesh: Mesh;
-      angularSpeed: number;
-      angle: number;
-      group: Group;
-      majorAxis: number;
-      minorAxis: number;
-      planeY: number;
-    }[] = [];
+    const planets: PlanetInstance[] = [];
     const halfBounds = Math.sqrt(
       this.model.half.x * this.model.half.x +
         this.model.half.y * this.model.half.y +
@@ -276,7 +282,7 @@ export class ArenaAsset {
       const majorAxis = orbit.radius * 0.8;
       const minorAxis = majorAxis * (0.7 / 1.3); // match subwarp flatten ratio
       const planeY = star.radius * 0.2;
-      planets.push({
+      const planetEntry: PlanetInstance = {
         orbitRadius: orbit.radius,
         mesh: planetMesh,
         angularSpeed,
@@ -284,8 +290,13 @@ export class ArenaAsset {
         group: planetGroup,
         majorAxis,
         minorAxis,
-        planeY
-      });
+        planeY,
+        planetId: orbit.planet.id
+      };
+      if (star.id === HOME_STAR_ID) {
+        this.homePlanetMeshes.set(planetMesh, { starId: star.id, planetId: orbit.planet.id });
+      }
+      planets.push(planetEntry);
     });
     return planets;
   }
