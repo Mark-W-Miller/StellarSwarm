@@ -328,10 +328,8 @@ const sceneInteraction = new SceneInteraction(
         : star.radius * 1.5;
     const safeRadius = bounding + star.radius;
     const fovRad = (camera.fov * Math.PI) / 180;
-    let desiredDistance = Math.max(
-      safeRadius,
-      (2 * safeRadius) / Math.tan(fovRad / 2)
-    );
+    const lateral = safeRadius * 1.1;
+    let desiredDistance = Math.max(lateral, lateral / Math.tan(fovRad / 2));
     const flyOptions: Parameters<typeof cameraController.flyToTarget>[2] = {
       targetDuration: 0.6,
       radiusDuration: 1.4
@@ -345,7 +343,7 @@ const sceneInteraction = new SceneInteraction(
         flyOptions.yawDuration = 1;
         flyOptions.pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
         flyOptions.pitchDuration = 1;
-        desiredDistance = Math.max(desiredDistance, len + safeRadius);
+        desiredDistance = Math.max(desiredDistance, Math.min(len * 0.65, len + safeRadius * 0.5));
         cameraController.setLookAtOverride(homeStarPosition.clone());
       } else {
         cameraController.setLookAtOverride(null);

@@ -319,7 +319,7 @@ export class ArenaAsset {
     if (!star.orbits) return planets;
     star.orbits.forEach((orbit, idx) => {
       if (!orbit.hasPlanet || !orbit.planet || !allowPlanets) return;
-      const planetMesh = this.starAsset.createPlanetMesh(orbit.planet, orbit.radius);
+      const planetMesh = this.starAsset.createPlanetMesh(orbit.planet, orbit.radius, star.radius);
       const planetGroup = new Group();
       planetGroup.position.set(star.position.x, star.position.y, star.position.z);
       planetGroup.add(planetMesh);

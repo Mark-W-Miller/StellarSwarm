@@ -201,8 +201,11 @@ export class StarAsset {
     return base / Math.max(1, star.radius / 3);
   }
 
-  createPlanetMesh(planet: PlanetModel, orbitRadius: number) {
-    const geom = new SphereGeometry(planet.radius * 1.5, 10, 10);
+  createPlanetMesh(planet: PlanetModel, orbitRadius: number, starRadius: number) {
+    const maxDisplay = Math.max(0.1, starRadius * 0.45);
+    const baseRadius = Math.max(planet.radius * 0.8, starRadius * 0.05);
+    const displayRadius = Math.min(baseRadius, maxDisplay);
+    const geom = new SphereGeometry(displayRadius, 10, 10);
     const baseColor = new Color(planet.color);
     const mat = new MeshStandardMaterial({
       color: baseColor.clone(),

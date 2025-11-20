@@ -205,11 +205,6 @@ export class SceneInteraction {
       return;
     } else {
       this.lastStarClick = { id: null, time: 0 };
-      if (this.selectionChain.length > 0) {
-        log("M_EVENT_CLICK", "Selection chain ended", { chain: this.selectionChain });
-        this.clearSelections();
-      }
-      this.onStarSelect?.(null);
       this.setCursor(false);
     }
 
