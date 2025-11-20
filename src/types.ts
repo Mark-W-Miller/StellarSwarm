@@ -12,6 +12,7 @@ export type Settings = {
     rotationSpeed: number;
     panSpeed: number;
     dragSensitivity: number;
+    travelSpeed: number;
   };
   sim: {
     tickRate: number;

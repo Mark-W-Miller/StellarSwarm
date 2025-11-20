@@ -11,7 +11,8 @@
     "maxRadius": 2000,
     "rotationSpeed": 2.0,
     "panSpeed": 8,
-    "dragSensitivity": 0.004
+    "dragSensitivity": 0.004,
+    "travelSpeed": 1
   },
   "sim": {
     "tickRate": 60,

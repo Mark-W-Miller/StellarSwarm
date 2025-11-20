@@ -69,6 +69,7 @@ const camera = new PerspectiveCamera(60, stage3d.clientWidth / stage3d.clientHei
 const arenaModel = createArenaModel(settings.arena);
 const initialStarCount = 100;
 const initialSubwarpScale = readSetting("hud:grid", 4);
+const storedTravelSpeed = clamp(readSetting("hud:travelSpeed", settings.camera.travelSpeed ?? 1), 0.25, 1.75);
 populateArenaModel(arenaModel, initialStarCount, initialSubwarpScale);
 const arenaAsset = new ArenaAsset(arenaModel, camera);
 const cameraController = new CameraController(
@@ -78,6 +79,8 @@ const cameraController = new CameraController(
   arenaModel.half,
   arenaAsset
 );
+cameraController.setTravelSpeed(storedTravelSpeed);
+settings.camera.travelSpeed = storedTravelSpeed;
 // Place the camera so it looks at the home star by default.
 const homeStar = arenaModel.stars.find((s) => s.id === HOME_STAR_ID);
 let homeStarPosition = homeStar
@@ -181,6 +184,19 @@ const attenInitial = clamp(readSetting("hud:atten", 1), 1, 100);
 attenInput.value = `${attenInitial}`;
 attenLabel.appendChild(attenInput);
 
+const travelSpeedLabel = document.createElement("label");
+travelSpeedLabel.textContent = "Travel speed:";
+const travelSpeedInput = document.createElement("input");
+travelSpeedInput.type = "range";
+travelSpeedInput.min = "0.25";
+travelSpeedInput.max = "1.75";
+travelSpeedInput.step = "0.05";
+travelSpeedInput.value = `${storedTravelSpeed}`;
+const travelSpeedValue = document.createElement("span");
+travelSpeedValue.className = "hud-value";
+travelSpeedValue.textContent = `${storedTravelSpeed.toFixed(2)}x`;
+travelSpeedLabel.append(travelSpeedInput, travelSpeedValue);
+
 const seedButton = document.createElement("button");
 seedButton.textContent = "Regenerate";
 seedButton.addEventListener("click", () => {
@@ -227,13 +243,33 @@ attenInput.addEventListener("change", () => {
   arenaAsset.setAttenuation(attenuation);
 });
 
+const applyTravelSpeed = (value: number) => {
+  const clamped = clamp(value, 0.25, 1.75);
+  travelSpeedValue.textContent = `${clamped.toFixed(2)}x`;
+  cameraController.setTravelSpeed(clamped);
+  settings.camera.travelSpeed = clamped;
+  persistSetting("hud:travelSpeed", clamped);
+};
+travelSpeedInput.addEventListener("input", () => {
+  applyTravelSpeed(Number(travelSpeedInput.value) || storedTravelSpeed);
+});
+
 brightInput.addEventListener("input", () => {
   const val = Number(brightInput.value);
   arenaAsset.setBrightnessForAll(val);
   log("UI", "Brightness changed", { value: val });
 });
 
-seedPanel.append(starsLabel, gridLabel, spokesLabel, simSpeedLabel, attenLabel, brightLabel, seedButton);
+seedPanel.append(
+  starsLabel,
+  gridLabel,
+  spokesLabel,
+  simSpeedLabel,
+  attenLabel,
+  travelSpeedLabel,
+  brightLabel,
+  seedButton
+);
 document.body.appendChild(seedPanel);
 
 const seedToggle = document.createElement("button");
@@ -295,7 +331,23 @@ const sceneInteraction = new SceneInteraction(
       safeRadius,
       (2 * safeRadius) / Math.tan(fovRad / 2)
     );
-    cameraController.flyToTarget(target, desiredDistance, { targetDuration: 0.6, radiusDuration: 1.4 });
+    const flyOptions: Parameters<typeof cameraController.flyToTarget>[2] = {
+      targetDuration: 0.6,
+      radiusDuration: 1.4
+    };
+    if (homeStarPosition && star.id !== HOME_STAR_ID) {
+      const horizontal = new Vector3(
+        homeStarPosition.x - target.x,
+        0,
+        homeStarPosition.z - target.z
+      );
+      if (horizontal.lengthSq() > 1e-4) {
+        horizontal.normalize();
+        flyOptions.yaw = Math.atan2(-horizontal.z, -horizontal.x);
+        flyOptions.yawDuration = 1;
+      }
+    }
+    cameraController.flyToTarget(target, desiredDistance, flyOptions);
   },
   () => cameraController.isDragging()
 );

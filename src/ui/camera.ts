@@ -45,6 +45,7 @@ export class CameraController {
   private ndc = new Vector2();
   private arenaAsset?: ArenaAsset;
   private flyState: FlyState | null = null;
+  private travelSpeed = 1;
 
   constructor(
     camera: PerspectiveCamera,
@@ -62,6 +63,7 @@ export class CameraController {
     this.radius = settings.radius;
     this.bounds = new Vector3(bounds.x, bounds.y, bounds.z);
     this.arenaAsset = arenaAsset;
+    this.setTravelSpeed(settings.travelSpeed ?? 1);
 
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -159,10 +161,14 @@ export class CameraController {
     }
   ) {
     const clampedRadius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, radius));
-    const targetDuration = Math.max(0.01, options?.targetDuration ?? 1.2);
-    const radiusDuration = Math.max(0.01, options?.radiusDuration ?? 2.8);
+    const speed = this.travelSpeed > 0 ? this.travelSpeed : 1;
+    const durationScale = 1 / speed;
+    const targetDuration = Math.max(0.01, (options?.targetDuration ?? 1.2) * durationScale);
+    const radiusDuration = Math.max(0.01, (options?.radiusDuration ?? 2.8) * durationScale);
     const yawProvided = typeof options?.yaw === "number";
     const pitchProvided = typeof options?.pitch === "number";
+    const baseYawDuration = Math.max(0.01, options?.yawDuration ?? 1);
+    const basePitchDuration = Math.max(0.01, options?.pitchDuration ?? 1);
     this.flyState = {
       targetStart: this.target.clone(),
       targetEnd: target.clone(),
@@ -175,12 +181,17 @@ export class CameraController {
       yawStart: yawProvided ? this.yaw : null,
       yawEnd: options?.yaw ?? 0,
       yawElapsed: 0,
-      yawDuration: yawProvided ? Math.max(0.01, options?.yawDuration ?? 1) : 0,
+      yawDuration: yawProvided ? baseYawDuration * durationScale : 0,
       pitchStart: pitchProvided ? this.pitch : null,
       pitchEnd: options?.pitch ?? 0,
       pitchElapsed: 0,
-      pitchDuration: pitchProvided ? Math.max(0.01, options?.pitchDuration ?? 1) : 0
+      pitchDuration: pitchProvided ? basePitchDuration * durationScale : 0
     };
+  }
+
+  setTravelSpeed(multiplier: number) {
+    if (!Number.isFinite(multiplier)) return;
+    this.travelSpeed = Math.min(4, Math.max(0.25, multiplier));
   }
 
   isDragging() {
