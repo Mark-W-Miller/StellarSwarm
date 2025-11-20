@@ -170,7 +170,8 @@ export class HomeStarAsset {
   rotateControlShell(angle: number) {
     if (angle === 0) return;
     this.controls.forEach((ctrl) => {
-      ctrl.mesh.rotateOnAxis(ctrl.axis, angle);
+      const sign = ctrl.mesh.position.y >= 0 ? 1 : -1;
+      ctrl.mesh.rotateOnAxis(ctrl.axis, angle * sign);
     });
   }
 
