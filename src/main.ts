@@ -80,16 +80,19 @@ const cameraController = new CameraController(
 );
 // Place the camera so it looks at the home star by default.
 const homeStar = arenaModel.stars.find((s) => s.id === HOME_STAR_ID);
-if (homeStar) {
-  const target = new Vector3(homeStar.position.x, homeStar.position.y, homeStar.position.z);
+let homeStarPosition = homeStar
+  ? new Vector3(homeStar.position.x, homeStar.position.y, homeStar.position.z)
+  : null;
+if (homeStarPosition) {
+  const target = homeStarPosition.clone();
   const corner = new Vector3(
-    homeStar.position.x >= 0 ? arenaModel.half.x : -arenaModel.half.x,
-    homeStar.position.y >= 0 ? arenaModel.half.y : -arenaModel.half.y,
-    homeStar.position.z >= 0 ? arenaModel.half.z : -arenaModel.half.z
+    homeStarPosition.x >= 0 ? arenaModel.half.x : -arenaModel.half.x,
+    homeStarPosition.y >= 0 ? arenaModel.half.y : -arenaModel.half.y,
+    homeStarPosition.z >= 0 ? arenaModel.half.z : -arenaModel.half.z
   );
   const halfwayOffset = corner.clone().sub(target).multiplyScalar(0.5);
   const cameraPos = target.clone().add(halfwayOffset);
-  cameraController.setPosition(cameraPos, target);
+  cameraController.setPosition(cameraPos, homeStarPosition);
 } else {
   cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
 }
@@ -261,8 +264,19 @@ const sceneInteraction = new SceneInteraction(
   (star) => {
     starInfoPanel.setStar(star ?? null);
   },
-  (pos) => {
-    cameraController.focusOn(pos);
+  (star) => {
+    const target = new Vector3(star.position.x, star.position.y, star.position.z);
+    const bounding =
+      star.orbits && star.orbits.length > 0
+        ? Math.max(...star.orbits.map((o) => o.radius))
+        : star.radius * 1.5;
+    const safeRadius = bounding + star.radius;
+    const fovRad = (camera.fov * Math.PI) / 180;
+    const desiredDistance = Math.max(
+      safeRadius,
+      (2 * safeRadius) / Math.tan(fovRad / 2)
+    );
+    cameraController.flyToTarget(target, desiredDistance, 0.6, 1.4);
   },
   () => cameraController.isDragging()
 );
@@ -343,5 +357,9 @@ start();
 function regenerateStars(count: number, subwarpScale: number) {
   populateArenaModel(arenaModel, count, subwarpScale);
   arenaAsset.resetStars(arenaModel.stars);
-  gameManager.setHomeStar(arenaModel.stars.find((s) => s.id === HOME_STAR_ID));
+  const nextHome = arenaModel.stars.find((s) => s.id === HOME_STAR_ID);
+  homeStarPosition = nextHome
+    ? new Vector3(nextHome.position.x, nextHome.position.y, nextHome.position.z)
+    : null;
+  gameManager.setHomeStar(nextHome);
 }

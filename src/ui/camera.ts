@@ -11,6 +11,17 @@ type PointerState = {
   mode: "orbit" | "pan";
 };
 
+type FlyState = {
+  targetStart: Vector3;
+  targetEnd: Vector3;
+  targetElapsed: number;
+  targetDuration: number;
+  radiusStart: number;
+  radiusEnd: number;
+  radiusElapsed: number;
+  radiusDuration: number;
+};
+
 export class CameraController {
   private camera: PerspectiveCamera;
   private domElement: HTMLElement;
@@ -25,6 +36,7 @@ export class CameraController {
   private raycaster = new Raycaster();
   private ndc = new Vector2();
   private arenaAsset?: ArenaAsset;
+  private flyState: FlyState | null = null;
 
   constructor(
     camera: PerspectiveCamera,
@@ -70,6 +82,7 @@ export class CameraController {
   }
 
   update(delta: number) {
+    if (this.stepFly(delta)) return;
     const panDistance = this.settings.panSpeed * delta;
     const forwardMultiplier = this.keyState.has("Shift") ? 10 : 1;
     const forwardDistance = panDistance * 10 * forwardMultiplier;
@@ -121,6 +134,24 @@ export class CameraController {
     return this.target.clone();
   }
 
+  getRadius() {
+    return this.radius;
+  }
+
+  flyToTarget(target: Vector3, radius: number, targetDuration = 0.6, radiusDuration = 1.4) {
+    const clampedRadius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, radius));
+    this.flyState = {
+      targetStart: this.target.clone(),
+      targetEnd: target.clone(),
+      targetElapsed: 0,
+      targetDuration: Math.max(0.01, targetDuration),
+      radiusStart: this.radius,
+      radiusEnd: clampedRadius,
+      radiusElapsed: 0,
+      radiusDuration: Math.max(0.01, radiusDuration)
+    };
+  }
+
   isDragging() {
     return this.pointer.active;
   }
@@ -164,6 +195,7 @@ export class CameraController {
   }
 
   private handlePointerDown(event: PointerEvent) {
+    this.flyState = null;
     log("CAMERA_MOVE", "Pointer down", { button: event.button });
     if (!(event.target instanceof HTMLElement)) return;
     if (
@@ -227,6 +259,7 @@ export class CameraController {
   }
 
   private handleWheel(event: WheelEvent) {
+    this.flyState = null;
     event.preventDefault();
     const delta = Math.sign(event.deltaY);
     const radiusChange = delta * 10;
@@ -253,6 +286,7 @@ export class CameraController {
   private handleKeyDown(event: KeyboardEvent) {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Shift"].includes(event.key)) {
       event.preventDefault();
+      this.flyState = null;
       if (!this.keyState.has(event.key)) {
         this.keyState.add(event.key);
         if (event.key === "Shift") {
@@ -281,5 +315,31 @@ export class CameraController {
     const z = this.target.z + this.radius * Math.cos(clampedPitch) * Math.sin(this.yaw);
     this.camera.position.set(x, y, z);
     this.camera.lookAt(this.target);
+  }
+
+  private stepFly(delta: number) {
+    if (!this.flyState) return false;
+    const state = this.flyState;
+    state.targetElapsed = Math.min(state.targetElapsed + delta, state.targetDuration);
+    state.radiusElapsed = Math.min(state.radiusElapsed + delta, state.radiusDuration);
+
+    const targetT = this.ease(state.targetElapsed / state.targetDuration);
+    const radiusT = this.ease(state.radiusElapsed / state.radiusDuration);
+
+    this.target.copy(state.targetStart).lerp(state.targetEnd, targetT);
+    this.radius = state.radiusStart + (state.radiusEnd - state.radiusStart) * radiusT;
+
+    this.clampToBounds();
+    this.updateCamera();
+
+    const done =
+      state.targetElapsed >= state.targetDuration && state.radiusElapsed >= state.radiusDuration;
+    if (done) this.flyState = null;
+    return !done;
+  }
+
+  private ease(t: number) {
+    const clamped = Math.max(0, Math.min(1, t));
+    return 1 - Math.pow(1 - clamped, 3);
   }
 }

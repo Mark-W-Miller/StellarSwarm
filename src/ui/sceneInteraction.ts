@@ -1,9 +1,10 @@
 import { Camera, Mesh, Raycaster, Vector2, Vector3 } from "three";
 import { log } from "./log/logger";
 import { eventBus } from "../engine/eventBus";
+import type { ArenaAsset } from "../assets/arenaAsset";
+import type { StarModel } from "../model/starModel";
 
 const CENTER_CONTROL_ID = "CTRL-CENTER";
-import type { ArenaAsset } from "../assets/arenaAsset";
 
 type DragState =
   | { active: false }
@@ -31,8 +32,8 @@ export class SceneInteraction {
     private camera: Camera,
     private arenaAsset: ArenaAsset,
     private onCornerDoubleClick?: (pos: Vector3) => void,
-  private onStarSelect?: (star: any) => void,
-    private onStarDoubleClick?: (pos: Vector3) => void,
+    private onStarSelect?: (star: any) => void,
+    private onStarDoubleClick?: (star: StarModel) => void,
     private isCameraDragging?: () => boolean
   ) {
     this.onPointerMove = this.onPointerMove.bind(this);
@@ -179,7 +180,7 @@ export class SceneInteraction {
       log("M_EVENT_CLICK", "Star pointerdown", { star: star.id, button: event.button });
       if (this.lastStarClick.id === star.id && now - this.lastStarClick.time < 350) {
         log("M_EVENT_CLICK", "Star double-click", { star: star.id });
-        this.onStarDoubleClick?.(new Vector3(star.position.x, star.position.y, star.position.z));
+        this.onStarDoubleClick?.(star);
       }
       this.lastStarClick = { id: star.id, time: now };
       this.onStarSelect?.(star);

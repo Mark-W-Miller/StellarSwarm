@@ -28,6 +28,8 @@ export class StarAsset {
       emissiveIntensity: 0.3,
       opacity: 0.35,
       transparent: true,
+      depthWrite: false,
+      depthTest: false,
       roughness: 0.2,
       metalness: 0
     });
