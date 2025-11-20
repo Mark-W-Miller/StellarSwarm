@@ -51,20 +51,19 @@ class HomeControlStore {
     return this.centerActive;
   }
 
-  markClicked(controlId: string) {
+  toggleControl(controlId: string) {
     const ctrl = this.controls.get(controlId);
     log("GAME", "Control lookup", {
       control: controlId,
       state: ctrl ?? null
     });
     if (!ctrl) return;
-    log("GAME", "Control marked clicked", {
+    ctrl.clicked = !ctrl.clicked;
+    ctrl.lastClickedAt = ctrl.clicked ? Date.now() : undefined;
+    log("GAME", ctrl.clicked ? "Control activated" : "Control cleared", {
       control: controlId,
-      star: ctrl.starId,
-      time: ctrl.lastClickedAt
+      star: ctrl.starId
     });
-    ctrl.clicked = true;
-    ctrl.lastClickedAt = Date.now();
     this.notify();
   }
 

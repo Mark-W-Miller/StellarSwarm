@@ -257,7 +257,24 @@ function createHomeControls(radius: number) {
     [-1, -1, -1]
   ];
   const shell = radius * 0.9;
+  const glyphs = [
+    { texture: "phi", symbol: "Φ", name: "Phi" },
+    { texture: "psi", symbol: "Ψ", name: "Psi" },
+    { texture: "omega", symbol: "Ω", name: "Omega" },
+    { texture: "chi", symbol: "Χ", name: "Chi" },
+    { texture: "sigma", symbol: "Σ", name: "Sigma" },
+    { texture: "rho", symbol: "Ρ", name: "Rho" },
+    { texture: "xi", symbol: "Ξ", name: "Xi" },
+    { texture: "theta", symbol: "Θ", name: "Theta" },
+    { texture: "eta", symbol: "Η", name: "Eta" },
+    { texture: "pi", symbol: "Π", name: "Pi" },
+    { texture: "gamma", symbol: "Γ", name: "Gamma" },
+    { texture: "delta", symbol: "Δ", name: "Delta" },
+    { texture: "lambda", symbol: "Λ", name: "Lambda" },
+    { texture: "zeta", symbol: "Ζ", name: "Zeta" }
+  ];
   return dirs.map((dir, idx) => {
+    const glyph = glyphs[idx % glyphs.length];
     const len = Math.hypot(dir[0], dir[1], dir[2]) || 1;
     return {
       id: `CTRL-${idx + 1}`,
@@ -265,7 +282,10 @@ function createHomeControls(radius: number) {
         x: (dir[0] / len) * shell,
         y: (dir[1] / len) * shell,
         z: (dir[2] / len) * shell
-      }
+      },
+      symbol: glyph.symbol,
+      texture: glyph.texture,
+      name: glyph.name
     };
   });
 }

@@ -34,7 +34,7 @@ export class HomeStarAsset {
   private highlighted = new Set<string>();
   private lastBrightness = 1;
   private readonly spinAxis = new Vector3(0, 1, 0);
-  private greekTextures: Texture[];
+  private greekTextures: Map<string, Texture>;
 
   private static textureLoader = new TextureLoader().setPath("/textures/homeControls/");
   private static textureNames = [
@@ -53,7 +53,7 @@ export class HomeStarAsset {
     "lambda",
     "zeta"
   ];
-  private static cachedTextures: Texture[] | null = null;
+  private static cachedTextures: Map<string, Texture> | null = null;
 
   constructor(star: StarModel) {
     this.greekTextures = HomeStarAsset.getTextures();
@@ -82,9 +82,12 @@ export class HomeStarAsset {
         roughness: 0.85,
         metalness: 0.05
       });
-      const tex = this.greekTextures[idx % this.greekTextures.length];
-      mat.map = tex;
-      mat.needsUpdate = true;
+      const texName = ctrl.texture ?? HomeStarAsset.textureNames[idx % HomeStarAsset.textureNames.length];
+      const tex = this.greekTextures.get(texName);
+      if (tex) {
+        mat.map = tex;
+        mat.needsUpdate = true;
+      }
       const ctrlMesh = new Mesh(controlGeom.clone(), mat);
       const ctrlId = ctrl.id ?? `CTRL-${idx + 1}`;
       ctrlMesh.position.set(ctrl.position.x, ctrl.position.y, ctrl.position.z);
@@ -192,12 +195,12 @@ export class HomeStarAsset {
 
   private static getTextures() {
     if (this.cachedTextures) return this.cachedTextures;
-    this.cachedTextures = this.textureNames.map((name) => {
+    this.cachedTextures = new Map();
+    this.textureNames.forEach((name) => {
       const tex = this.textureLoader.load(`${name}.png`);
       tex.colorSpace = SRGBColorSpace;
       tex.needsUpdate = true;
-      
-      return tex;
+      this.cachedTextures!.set(name, tex);
     });
     return this.cachedTextures;
   }
@@ -213,7 +216,7 @@ export class HomeStarAsset {
     const radiusZ = star.radius * scale * 0.7;
     const planeY = star.id === HOME_STAR_ID ? 0 : star.radius * 0.2;
     const group = new Group();
-    const tubeRadius = Math.max(star.radius * 0.025, 0.04);
+    const tubeRadius = Math.max(star.radius * 0.0125, 0.02);
     const step = Math.max(star.radius / 2, 1);
 
     const orbitCount = orbitRadii?.length ?? 0;
@@ -223,7 +226,8 @@ export class HomeStarAsset {
         const rx = baseR * 0.8;
         const rz = rx * (0.7 / 1.3);
         const circumference = Math.PI * (rx + rz);
-        const segments = Math.max(12, Math.floor(circumference / step));
+        const baseSegments = Math.max(12, Math.floor(circumference / step));
+        const segments = baseSegments * 2;
         const c = new Color(orbitColors ? orbitColors[Math.min(ri, orbitColors.length - 1)] : star.color);
         for (let i = 0; i < segments; i += 1) {
           const theta1 = (i / segments) * Math.PI * 2;
@@ -242,7 +246,8 @@ export class HomeStarAsset {
         const rx = step + (radiusX - step) * t;
         const rz = step + (radiusZ - step) * t;
         const circumference = Math.PI * (rx + rz);
-        const segments = Math.max(12, Math.floor(circumference / step));
+        const baseSegments = Math.max(12, Math.floor(circumference / step));
+        const segments = baseSegments * 2;
         const c = new Color(orbitColors ? orbitColors[colorIdx] : star.color);
         for (let i = 0; i < segments; i += 1) {
           const theta1 = (i / segments) * Math.PI * 2;

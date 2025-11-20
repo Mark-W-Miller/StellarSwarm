@@ -21,7 +21,7 @@ export class GameManager {
 
   private onControlClick: (event: GameEventMap["control-click"]) => void = (event) => {
     log("COMMAND", "GameManager control click", { control: event.controlId, star: event.starId });
-    homeControlStore.markClicked(event.controlId);
+    homeControlStore.toggleControl(event.controlId);
     // Future: translate control clicks into gameplay actions.
   };
 }

@@ -1,4 +1,5 @@
 import { homeControlStore, type ControlState } from "../state/homeControls";
+import { eventBus } from "../engine/eventBus";
 
 const LS_KEY = "stellarswarm:homeinfo";
 
@@ -146,12 +147,15 @@ export class HomeInfoOverlay {
       cell.className = "home-overlay__cell";
       if (ctrl.clicked) cell.classList.add("clicked");
       if (ctrl.id === this.selected) cell.classList.add("selected");
-      cell.textContent = ctrl.id.replace(/^CTRL-/, "");
-      cell.title = ctrl.id;
+      cell.textContent = ctrl.symbol ?? ctrl.id.replace(/^CTRL-/, "");
+      cell.title = `${ctrl.name ?? ctrl.id} (${ctrl.id})`;
       cell.addEventListener("click", () => {
         this.selected = ctrl.id;
-        this.renderGrid();
-        this.renderDetails();
+        eventBus.emit("control-click", {
+          type: "control-click",
+          starId: ctrl.starId,
+          controlId: ctrl.id
+        });
       });
       this.grid.appendChild(cell);
     });
@@ -172,6 +176,7 @@ export class HomeInfoOverlay {
       : "—";
     this.details.innerHTML = `
       <div><strong>Control:</strong> ${ctrl.id}</div>
+      <div><strong>Symbol:</strong> ${ctrl.symbol ?? "—"} (${ctrl.name ?? ""})</div>
       <div><strong>Status:</strong> ${ctrl.clicked ? "Activated" : "Idle"}</div>
       <div><strong>Position:</strong> (${ctrl.position.x.toFixed(1)}, ${ctrl.position.y.toFixed(
         1

@@ -1,6 +1,9 @@
 export type HomeControlModel = {
   id: string;
   position: { x: number; y: number; z: number };
+  symbol: string;
+  texture: string;
+  name: string;
 };
 
 export type StarModel = {

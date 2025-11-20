@@ -114,7 +114,7 @@ export class StarAsset {
     const planeY = star.radius * 0.2;
     const step = Math.max(star.radius / 2, 1);
     const group = new Group();
-    const tubeRadius = Math.max(star.radius * 0.025, 0.04);
+    const tubeRadius = Math.max(star.radius * 0.0125, 0.02);
 
     const orbitCount = orbitRadii?.length ?? 0;
     if (orbitCount > 0) {
@@ -123,7 +123,8 @@ export class StarAsset {
         const rx = baseR * 0.8;
         const rz = rx * (0.7 / 1.3);
         const circumference = Math.PI * (rx + rz);
-        const segments = Math.max(12, Math.floor(circumference / step));
+        const baseSegments = Math.max(12, Math.floor(circumference / step));
+        const segments = baseSegments * 2;
         const c = new Color(orbitColors ? orbitColors[Math.min(ri, orbitColors.length - 1)] : star.color);
         for (let i = 0; i < segments; i += 1) {
           const theta1 = (i / segments) * Math.PI * 2;
@@ -142,7 +143,8 @@ export class StarAsset {
         const rx = step + (radiusX - step) * t;
         const rz = step + (radiusZ - step) * t;
         const circumference = Math.PI * (rx + rz);
-        const segments = Math.max(12, Math.floor(circumference / step));
+        const baseSegments = Math.max(12, Math.floor(circumference / step));
+        const segments = baseSegments * 2;
         const c = new Color(orbitColors ? orbitColors[colorIdx] : star.color);
         for (let i = 0; i < segments; i += 1) {
           const theta1 = (i / segments) * Math.PI * 2;
