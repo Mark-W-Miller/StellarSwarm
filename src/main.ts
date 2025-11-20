@@ -83,6 +83,7 @@ const homeStar = arenaModel.stars.find((s) => s.id === HOME_STAR_ID);
 let homeStarPosition = homeStar
   ? new Vector3(homeStar.position.x, homeStar.position.y, homeStar.position.z)
   : null;
+let homeCameraOffset: Vector3 | null = null;
 if (homeStarPosition) {
   const target = homeStarPosition.clone();
   const corner = new Vector3(
@@ -93,8 +94,10 @@ if (homeStarPosition) {
   const halfwayOffset = corner.clone().sub(target).multiplyScalar(0.5);
   const cameraPos = target.clone().add(halfwayOffset);
   cameraController.setPosition(cameraPos, homeStarPosition);
+  homeCameraOffset = camera.position.clone().sub(homeStarPosition);
 } else {
   cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
+  homeCameraOffset = null;
 }
 
 const sim = new GameSim();
@@ -266,6 +269,22 @@ const sceneInteraction = new SceneInteraction(
   },
   (star) => {
     const target = new Vector3(star.position.x, star.position.y, star.position.z);
+    if (star.id === HOME_STAR_ID && homeStarPosition && homeCameraOffset) {
+      const desired = homeCameraOffset.length();
+      if (desired > 0) {
+        const yaw = Math.atan2(homeCameraOffset.z, homeCameraOffset.x);
+        const pitch = Math.asin(Math.max(-1, Math.min(1, homeCameraOffset.y / desired)));
+        cameraController.flyToTarget(homeStarPosition.clone(), desired, {
+          targetDuration: 0.6,
+          radiusDuration: 1.4,
+          yaw,
+          yawDuration: 1,
+          pitch,
+          pitchDuration: 1
+        });
+        return;
+      }
+    }
     const bounding =
       star.orbits && star.orbits.length > 0
         ? Math.max(...star.orbits.map((o) => o.radius))
@@ -276,7 +295,7 @@ const sceneInteraction = new SceneInteraction(
       safeRadius,
       (2 * safeRadius) / Math.tan(fovRad / 2)
     );
-    cameraController.flyToTarget(target, desiredDistance, 0.6, 1.4);
+    cameraController.flyToTarget(target, desiredDistance, { targetDuration: 0.6, radiusDuration: 1.4 });
   },
   () => cameraController.isDragging()
 );
@@ -361,5 +380,6 @@ function regenerateStars(count: number, subwarpScale: number) {
   homeStarPosition = nextHome
     ? new Vector3(nextHome.position.x, nextHome.position.y, nextHome.position.z)
     : null;
+  homeCameraOffset = homeStarPosition ? camera.position.clone().sub(homeStarPosition) : null;
   gameManager.setHomeStar(nextHome);
 }

@@ -20,6 +20,14 @@ type FlyState = {
   radiusEnd: number;
   radiusElapsed: number;
   radiusDuration: number;
+  yawStart: number | null;
+  yawEnd: number;
+  yawElapsed: number;
+  yawDuration: number;
+  pitchStart: number | null;
+  pitchEnd: number;
+  pitchElapsed: number;
+  pitchDuration: number;
 };
 
 export class CameraController {
@@ -138,17 +146,40 @@ export class CameraController {
     return this.radius;
   }
 
-  flyToTarget(target: Vector3, radius: number, targetDuration = 0.6, radiusDuration = 1.4) {
+  flyToTarget(
+    target: Vector3,
+    radius: number,
+    options?: {
+      targetDuration?: number;
+      radiusDuration?: number;
+      yaw?: number;
+      yawDuration?: number;
+      pitch?: number;
+      pitchDuration?: number;
+    }
+  ) {
     const clampedRadius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, radius));
+    const targetDuration = Math.max(0.01, options?.targetDuration ?? 1.2);
+    const radiusDuration = Math.max(0.01, options?.radiusDuration ?? 2.8);
+    const yawProvided = typeof options?.yaw === "number";
+    const pitchProvided = typeof options?.pitch === "number";
     this.flyState = {
       targetStart: this.target.clone(),
       targetEnd: target.clone(),
       targetElapsed: 0,
-      targetDuration: Math.max(0.01, targetDuration),
+      targetDuration,
       radiusStart: this.radius,
       radiusEnd: clampedRadius,
       radiusElapsed: 0,
-      radiusDuration: Math.max(0.01, radiusDuration)
+      radiusDuration,
+      yawStart: yawProvided ? this.yaw : null,
+      yawEnd: options?.yaw ?? 0,
+      yawElapsed: 0,
+      yawDuration: yawProvided ? Math.max(0.01, options?.yawDuration ?? 1) : 0,
+      pitchStart: pitchProvided ? this.pitch : null,
+      pitchEnd: options?.pitch ?? 0,
+      pitchElapsed: 0,
+      pitchDuration: pitchProvided ? Math.max(0.01, options?.pitchDuration ?? 1) : 0
     };
   }
 
@@ -329,11 +360,26 @@ export class CameraController {
     this.target.copy(state.targetStart).lerp(state.targetEnd, targetT);
     this.radius = state.radiusStart + (state.radiusEnd - state.radiusStart) * radiusT;
 
+    if (state.yawStart !== null) {
+      state.yawElapsed = Math.min(state.yawElapsed + delta, state.yawDuration);
+      const yawT = this.ease(state.yawElapsed / state.yawDuration);
+      this.yaw = state.yawStart + (state.yawEnd - state.yawStart) * yawT;
+    }
+
+    if (state.pitchStart !== null) {
+      state.pitchElapsed = Math.min(state.pitchElapsed + delta, state.pitchDuration);
+      const pitchT = this.ease(state.pitchElapsed / state.pitchDuration);
+      this.pitch = state.pitchStart + (state.pitchEnd - state.pitchStart) * pitchT;
+    }
+
     this.clampToBounds();
     this.updateCamera();
 
     const done =
-      state.targetElapsed >= state.targetDuration && state.radiusElapsed >= state.radiusDuration;
+      state.targetElapsed >= state.targetDuration &&
+      state.radiusElapsed >= state.radiusDuration &&
+      (state.yawStart === null || state.yawElapsed >= state.yawDuration) &&
+      (state.pitchStart === null || state.pitchElapsed >= state.pitchDuration);
     if (done) this.flyState = null;
     return !done;
   }

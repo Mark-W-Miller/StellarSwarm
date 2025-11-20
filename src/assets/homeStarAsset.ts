@@ -20,6 +20,7 @@ type ControlMesh = {
   mesh: Mesh;
   id: string;
   axis: Vector3;
+  spoke?: Mesh;
 };
 
 export class HomeStarAsset {
@@ -68,6 +69,9 @@ export class HomeStarAsset {
     this.mesh.userData.controlId = this.centerControlId;
     const edges = new LineSegments(new EdgesGeometry(geom), new LineBasicMaterial({ color: new Color("#000000"), transparent: true, opacity: 0.9 }));
     this.mesh.add(edges);
+    const spokesGroup = new Group();
+    const spokeMat = new LineBasicMaterial({ color: new Color("#1f2937"), transparent: true, opacity: 0.8 });
+
 
     const controlGeom = new SphereGeometry(star.radius * 0.2, 16, 16);
     (star.controls ?? []).forEach((ctrl, idx) => {
@@ -88,7 +92,15 @@ export class HomeStarAsset {
       const ctrlEdges = new LineSegments(new EdgesGeometry(controlGeom), new LineBasicMaterial({ color: new Color("#ffffff"), transparent: true, opacity: 0.9 }));
       ctrlMesh.add(ctrlEdges);
       this.mesh.add(ctrlMesh);
-      this.controls.push({ mesh: ctrlMesh, id: ctrlId, axis: this.spinAxis.clone() });
+      const length = ctrlMesh.position.length();
+      const dir = ctrlMesh.position.clone().normalize();
+      const lineGeom = new CylinderGeometry(star.radius * 0.02, star.radius * 0.02, length, 8, 1, true);
+      lineGeom.translate(0, length / 2, 0);
+      const lineMat = new MeshStandardMaterial({ color: new Color("#1f2937"), roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.7 });
+      const lineMesh = new Mesh(lineGeom, lineMat);
+      lineMesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir);
+      this.mesh.add(lineMesh);
+      this.controls.push({ mesh: ctrlMesh, id: ctrlId, axis: this.spinAxis.clone(), spoke: lineMesh });
 
     });
   }
@@ -172,6 +184,9 @@ export class HomeStarAsset {
     this.controls.forEach((ctrl) => {
       const sign = ctrl.mesh.position.y >= 0 ? 1 : -1;
       ctrl.mesh.rotateOnAxis(ctrl.axis, angle * sign);
+      if (ctrl.spoke) {
+        ctrl.spoke.rotateOnAxis(ctrl.axis, angle * sign);
+      }
     });
   }
 
@@ -194,9 +209,11 @@ export class HomeStarAsset {
     orbitColors?: string[],
     orbitRadii?: number[]
   ) {
+    const radiusX = star.radius * scale * 1.3;
+    const radiusZ = star.radius * scale * 0.7;
     const planeY = star.id === HOME_STAR_ID ? 0 : star.radius * 0.2;
     const group = new Group();
-    const tubeRadius = Math.max(star.radius * 0.01, 0.02);
+    const tubeRadius = Math.max(star.radius * 0.025, 0.04);
     const step = Math.max(star.radius / 2, 1);
 
     const orbitCount = orbitRadii?.length ?? 0;
@@ -207,19 +224,17 @@ export class HomeStarAsset {
         const rz = rx * (0.7 / 1.3);
         const circumference = Math.PI * (rx + rz);
         const segments = Math.max(12, Math.floor(circumference / step));
-        const col = new Color(orbitColors ? orbitColors[Math.min(ri, orbitColors.length - 1)] : star.color);
+        const c = new Color(orbitColors ? orbitColors[Math.min(ri, orbitColors.length - 1)] : star.color);
         for (let i = 0; i < segments; i += 1) {
           const theta1 = (i / segments) * Math.PI * 2;
           const theta2 = ((i + 1) / segments) * Math.PI * 2;
           const y = planeY;
           const p1 = new Vector3(rx * Math.cos(theta1), y, rz * Math.sin(theta1));
           const p2 = new Vector3(rx * Math.cos(theta2), y, rz * Math.sin(theta2));
-          group.add(this.makeTube(p1, p2, tubeRadius, col));
+          group.add(this.makeTube(p1, p2, tubeRadius, c));
         }
       }
     } else {
-      const radiusX = star.radius * scale * 1.3;
-      const radiusZ = star.radius * scale * 0.7;
       const ringCount = Math.max(4, Math.floor((Math.max(radiusX, radiusZ) - step) / step));
       for (let ri = 1; ri <= ringCount; ri += 1) {
         const colorIdx = Math.min(ri - 1, (orbitColors?.length ?? 1) - 1);
@@ -228,27 +243,16 @@ export class HomeStarAsset {
         const rz = step + (radiusZ - step) * t;
         const circumference = Math.PI * (rx + rz);
         const segments = Math.max(12, Math.floor(circumference / step));
-        const col = new Color(orbitColors ? orbitColors[colorIdx] : star.color);
+        const c = new Color(orbitColors ? orbitColors[colorIdx] : star.color);
         for (let i = 0; i < segments; i += 1) {
           const theta1 = (i / segments) * Math.PI * 2;
           const theta2 = ((i + 1) / segments) * Math.PI * 2;
           const y = planeY;
           const p1 = new Vector3(rx * Math.cos(theta1), y, rz * Math.sin(theta1));
           const p2 = new Vector3(rx * Math.cos(theta2), y, rz * Math.sin(theta2));
-          group.add(this.makeTube(p1, p2, tubeRadius, col));
+          group.add(this.makeTube(p1, p2, tubeRadius, c));
         }
       }
-    }
-
-    for (let i = 0; i < spokes; i += 1) {
-      const theta = (i / spokes) * Math.PI * 2;
-      const maxRx = orbitCount > 0 ? orbitRadii![orbitCount - 1] * 0.8 : star.radius * scale * 1.3;
-      const maxRz = orbitCount > 0 ? maxRx * (0.7 / 1.3) : star.radius * scale * 0.7;
-      const x = maxRx * 0.6 * Math.cos(theta);
-      const z = maxRz * 0.6 * Math.sin(theta);
-      const p1 = new Vector3(0, planeY, 0);
-      const p2 = new Vector3(x, planeY, z);
-      group.add(this.makeTube(p1, p2, tubeRadius * 0.5, new Color(star.color)));
     }
 
     return group;
