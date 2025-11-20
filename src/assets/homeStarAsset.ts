@@ -1,5 +1,6 @@
 import {
   Color,
+  CanvasTexture,
   CylinderGeometry,
   EdgesGeometry,
   Group,
@@ -8,13 +9,16 @@ import {
   Mesh,
   MeshStandardMaterial,
   SphereGeometry,
-  Vector3
+  Vector3,
+  SRGBColorSpace
 } from "three";
+import { HOME_STAR_ID } from "../model/starModel";
 import type { StarModel } from "../model/starModel";
 
 type ControlMesh = {
   mesh: Mesh;
   id: string;
+  axis: Vector3;
 };
 
 export class HomeStarAsset {
@@ -27,8 +31,29 @@ export class HomeStarAsset {
   private readonly centerControlId = "CTRL-CENTER";
   private highlighted = new Set<string>();
   private lastBrightness = 1;
+  private readonly spinAxis = new Vector3(0, 1, 0);
+  private greekTextures: CanvasTexture[];
+
+  private static textureGlyphs = [
+    { name: "alpha", char: "Α" },
+    { name: "beta", char: "Β" },
+    { name: "gamma", char: "Γ" },
+    { name: "delta", char: "Δ" },
+    { name: "epsilon", char: "Ε" },
+    { name: "zeta", char: "Ζ" },
+    { name: "eta", char: "Η" },
+    { name: "theta", char: "Θ" },
+    { name: "iota", char: "Ι" },
+    { name: "kappa", char: "Κ" },
+    { name: "lambda", char: "Λ" },
+    { name: "mu", char: "Μ" },
+    { name: "nu", char: "Ν" },
+    { name: "xi", char: "Ξ" }
+  ];
+  private static cachedTextures: CanvasTexture[] | null = null;
 
   constructor(star: StarModel) {
+    this.greekTextures = HomeStarAsset.getTextures();
     const geom = new SphereGeometry(star.radius * 0.3, 24, 24);
     this.centerMaterial = new MeshStandardMaterial({
       color: this.baseColor.clone(),
@@ -45,20 +70,24 @@ export class HomeStarAsset {
     const controlGeom = new SphereGeometry(star.radius * 0.2, 16, 16);
     (star.controls ?? []).forEach((ctrl, idx) => {
       const mat = new MeshStandardMaterial({
-        color: this.baseColor.clone(),
+        color: new Color(1, 1, 1),
         emissive: this.baseColor.clone(),
         emissiveIntensity: star.brightness,
-        roughness: 0.95,
-        metalness: 0.02
+        roughness: 0.9,
+        metalness: 0.05,
+        transparent: true
       });
+      const tex = this.greekTextures[idx % this.greekTextures.length];
+      mat.map = tex;
+      mat.map.needsUpdate = true;
       const ctrlMesh = new Mesh(controlGeom.clone(), mat);
       const ctrlId = ctrl.id ?? `CTRL-${idx + 1}`;
       ctrlMesh.position.set(ctrl.position.x, ctrl.position.y, ctrl.position.z);
       ctrlMesh.userData.controlId = ctrlId;
-      const ctrlEdges = new LineSegments(new EdgesGeometry(controlGeom), new LineBasicMaterial({ color: new Color("#000000"), transparent: true, opacity: 0.9 }));
+      const ctrlEdges = new LineSegments(new EdgesGeometry(controlGeom), new LineBasicMaterial({ color: new Color("#ffffff"), transparent: true, opacity: 0.9 }));
       ctrlMesh.add(ctrlEdges);
       this.mesh.add(ctrlMesh);
-      this.controls.push({ mesh: ctrlMesh, id: ctrlId });
+      this.controls.push({ mesh: ctrlMesh, id: ctrlId, axis: this.spinAxis.clone() });
     });
   }
 
@@ -132,9 +161,48 @@ export class HomeStarAsset {
     if (!mat || !ctrlId) return;
     const base = this.highlighted.has(ctrlId) ? this.highlightColor : this.baseColor;
     mat.emissiveIntensity = intensity;
-    mat.color.copy(base).multiplyScalar(intensity);
     mat.emissive.copy(base);
+    mat.color.setScalar(1);
+    mat.opacity = Math.max(0.4, intensity);
     mat.needsUpdate = true;
+  }
+
+  rotateControlShell(angle: number) {
+    if (angle === 0) return;
+    this.controls.forEach((ctrl) => {
+      ctrl.mesh.rotateOnAxis(ctrl.axis, angle);
+    });
+  }
+
+  private static getTextures() {
+    if (this.cachedTextures) return this.cachedTextures;
+    this.cachedTextures = this.textureGlyphs.map((entry) => {
+      const canvas = document.createElement("canvas");
+      const size = 256;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Unable to acquire 2D context for control texture");
+      }
+      ctx.fillStyle = "#0b1122";
+      ctx.fillRect(0, 0, size, size);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const fontSize = size * 0.65;
+      ctx.font = `bold ${fontSize}px "Times New Roman", "Noto Serif", serif`;
+      ctx.lineJoin = "round";
+      ctx.lineWidth = size * 0.08;
+      ctx.strokeStyle = "#0f172a";
+      ctx.strokeText(entry.char, size / 2, size / 2 + size * 0.05);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillText(entry.char, size / 2, size / 2 + size * 0.05);
+      const texture = new CanvasTexture(canvas);
+      texture.colorSpace = SRGBColorSpace;
+      texture.needsUpdate = true;
+      return texture;
+    });
+    return this.cachedTextures;
   }
 
   private createOrbitGeometry(
@@ -144,7 +212,7 @@ export class HomeStarAsset {
     orbitColors?: string[],
     orbitRadii?: number[]
   ) {
-    const planeY = star.radius * 0.2;
+    const planeY = star.id === HOME_STAR_ID ? 0 : star.radius * 0.2;
     const group = new Group();
     const tubeRadius = Math.max(star.radius * 0.01, 0.02);
     const step = Math.max(star.radius / 2, 1);

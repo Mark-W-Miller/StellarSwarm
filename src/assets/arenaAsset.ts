@@ -157,6 +157,7 @@ export class ArenaAsset {
       const level = Math.max(0, Math.min(1, starModel.brightness));
       if (homeAsset) {
         homeAsset.updateBrightness(level);
+        homeAsset.rotateControlShell(-systemSpeed * 4);
       } else {
         this.starAsset.tick(starModel, mesh, intensity);
       }
