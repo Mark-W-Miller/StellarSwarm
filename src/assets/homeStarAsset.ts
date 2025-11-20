@@ -37,20 +37,20 @@ export class HomeStarAsset {
 
   private static textureLoader = new TextureLoader().setPath("/textures/homeControls/");
   private static textureNames = [
-    "alpha",
-    "beta",
+    "phi",
+    "psi",
+    "omega",
+    "chi",
+    "sigma",
+    "rho",
+    "xi",
+    "theta",
+    "eta",
+    "pi",
     "gamma",
     "delta",
-    "epsilon",
-    "zeta",
-    "eta",
-    "theta",
-    "iota",
-    "kappa",
     "lambda",
-    "mu",
-    "nu",
-    "xi"
+    "zeta"
   ];
   private static cachedTextures: Texture[] | null = null;
 
@@ -89,6 +89,7 @@ export class HomeStarAsset {
       ctrlMesh.add(ctrlEdges);
       this.mesh.add(ctrlMesh);
       this.controls.push({ mesh: ctrlMesh, id: ctrlId, axis: this.spinAxis.clone() });
+
     });
   }
 
@@ -179,7 +180,7 @@ export class HomeStarAsset {
       const tex = this.textureLoader.load(`${name}.png`);
       tex.colorSpace = SRGBColorSpace;
       tex.needsUpdate = true;
-      tex.flipY = false;
+      
       return tex;
     });
     return this.cachedTextures;
