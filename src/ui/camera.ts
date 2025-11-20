@@ -46,6 +46,7 @@ export class CameraController {
   private arenaAsset?: ArenaAsset;
   private flyState: FlyState | null = null;
   private travelSpeed = 1;
+  private lookOverride: Vector3 | null = null;
 
   constructor(
     camera: PerspectiveCamera,
@@ -189,6 +190,10 @@ export class CameraController {
     };
   }
 
+  setLookAtOverride(target: Vector3 | null) {
+    this.lookOverride = target ? target.clone() : null;
+  }
+
   setTravelSpeed(multiplier: number) {
     if (!Number.isFinite(multiplier)) return;
     this.travelSpeed = Math.min(4, Math.max(0.25, multiplier));
@@ -199,6 +204,7 @@ export class CameraController {
   }
 
   setPosition(position: Vector3, target = new Vector3(0, 0, 0)) {
+    this.lookOverride = null;
     this.target.copy(target);
     const offset = new Vector3().subVectors(position, target);
     const radius = offset.length();
@@ -213,6 +219,7 @@ export class CameraController {
   }
 
   focusOn(target: Vector3) {
+    this.lookOverride = null;
     this.target.copy(target);
     const offset = this.camera.position.clone().sub(this.target);
     const radius = offset.length();
@@ -238,6 +245,7 @@ export class CameraController {
 
   private handlePointerDown(event: PointerEvent) {
     this.flyState = null;
+    this.lookOverride = null;
     log("CAMERA_MOVE", "Pointer down", { button: event.button });
     if (!(event.target instanceof HTMLElement)) return;
     if (
@@ -356,7 +364,7 @@ export class CameraController {
     const y = this.target.y + this.radius * Math.sin(clampedPitch);
     const z = this.target.z + this.radius * Math.cos(clampedPitch) * Math.sin(this.yaw);
     this.camera.position.set(x, y, z);
-    this.camera.lookAt(this.target);
+    this.camera.lookAt(this.lookOverride ?? this.target);
   }
 
   private stepFly(delta: number) {

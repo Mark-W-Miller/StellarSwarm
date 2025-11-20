@@ -72,6 +72,12 @@ export class SceneInteraction {
     this.element.style.cursor = hit ? "crosshair" : "default";
   }
 
+  private clearSelections() {
+    if (this.selectionChain.length === 0) return;
+    this.selectionChain.forEach((id) => this.arenaAsset.removeSelection(id));
+    this.selectionChain = [];
+  }
+
   private updateRay(event: PointerEvent) {
     const rect = this.element.getBoundingClientRect();
     this.ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -160,29 +166,39 @@ export class SceneInteraction {
     if (star) {
       this.drag = { active: false };
       this.currentDragOver = null;
-      const shift = event.shiftKey;
       const alreadySelected = this.arenaAsset.isSelected(star.id);
-      if (shift) {
-        if (alreadySelected) {
-          this.arenaAsset.removeSelection(star.id);
-          this.selectionChain = this.selectionChain.filter((id) => id !== star.id);
-          log("M_EVENT_CLICK", "Star deselected (toggle)", { star: star.id });
-        } else {
-          this.arenaAsset.addSelection(star.id);
-          this.selectionChain.push(star.id);
-          log("M_EVENT_CLICK", "Star selected (toggle)", { star: star.id });
-        }
-      } else {
-        this.selectionChain.push(star.id);
-        this.arenaAsset.addSelection(star.id);
-      }
       const now = performance.now();
-      log("M_EVENT_CLICK", "Star pointerdown", { star: star.id, button: event.button });
-      if (this.lastStarClick.id === star.id && now - this.lastStarClick.time < 350) {
-        log("M_EVENT_CLICK", "Star double-click", { star: star.id });
-        this.onStarDoubleClick?.(star);
-      }
+      const isDoubleClick = this.lastStarClick.id === star.id && now - this.lastStarClick.time < 350;
       this.lastStarClick = { id: star.id, time: now };
+
+      if (isDoubleClick) {
+        log("M_EVENT_CLICK", "Star double-click", { star: star.id });
+        if (!alreadySelected) {
+          this.clearSelections();
+          this.arenaAsset.addSelection(star.id);
+          this.selectionChain = [star.id];
+        }
+        this.onStarDoubleClick?.(star);
+        this.onStarSelect?.(star);
+        this.setCursor(true);
+        this.consume(event);
+        return;
+      }
+
+      if (alreadySelected) {
+        this.arenaAsset.removeSelection(star.id);
+        this.selectionChain = this.selectionChain.filter((id) => id !== star.id);
+        log("M_EVENT_CLICK", "Star deselected", { star: star.id });
+        this.onStarSelect?.(null);
+        this.setCursor(false);
+        this.consume(event);
+        return;
+      }
+
+      this.clearSelections();
+      this.arenaAsset.addSelection(star.id);
+      this.selectionChain = [star.id];
+      log("M_EVENT_CLICK", "Star pointerdown", { star: star.id, button: event.button });
       this.onStarSelect?.(star);
       this.setCursor(true);
       this.consume(event);
@@ -191,7 +207,7 @@ export class SceneInteraction {
       this.lastStarClick = { id: null, time: 0 };
       if (this.selectionChain.length > 0) {
         log("M_EVENT_CLICK", "Selection chain ended", { chain: this.selectionChain });
-        this.selectionChain = [];
+        this.clearSelections();
       }
       this.onStarSelect?.(null);
       this.setCursor(false);

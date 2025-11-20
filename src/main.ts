@@ -310,12 +310,13 @@ const sceneInteraction = new SceneInteraction(
       if (desired > 0) {
         const yaw = Math.atan2(homeCameraOffset.z, homeCameraOffset.x);
         const pitch = Math.asin(Math.max(-1, Math.min(1, homeCameraOffset.y / desired)));
+        cameraController.setLookAtOverride(null);
         cameraController.flyToTarget(homeStarPosition.clone(), desired, {
           targetDuration: 0.6,
           radiusDuration: 1.4,
           yaw,
-          yawDuration: 1,
-          pitch,
+      yawDuration: 1,
+      pitch,
           pitchDuration: 1
         });
         return;
@@ -327,7 +328,7 @@ const sceneInteraction = new SceneInteraction(
         : star.radius * 1.5;
     const safeRadius = bounding + star.radius;
     const fovRad = (camera.fov * Math.PI) / 180;
-    const desiredDistance = Math.max(
+    let desiredDistance = Math.max(
       safeRadius,
       (2 * safeRadius) / Math.tan(fovRad / 2)
     );
@@ -336,16 +337,21 @@ const sceneInteraction = new SceneInteraction(
       radiusDuration: 1.4
     };
     if (homeStarPosition && star.id !== HOME_STAR_ID) {
-      const horizontal = new Vector3(
-        homeStarPosition.x - target.x,
-        0,
-        homeStarPosition.z - target.z
-      );
-      if (horizontal.lengthSq() > 1e-4) {
-        horizontal.normalize();
-        flyOptions.yaw = Math.atan2(-horizontal.z, -horizontal.x);
+      const dir = new Vector3().subVectors(target, homeStarPosition);
+      const len = dir.length();
+      if (len > 1e-4) {
+        dir.normalize();
+        flyOptions.yaw = Math.atan2(dir.z, dir.x);
         flyOptions.yawDuration = 1;
+        flyOptions.pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+        flyOptions.pitchDuration = 1;
+        desiredDistance = Math.max(desiredDistance, len + safeRadius);
+        cameraController.setLookAtOverride(homeStarPosition.clone());
+      } else {
+        cameraController.setLookAtOverride(null);
       }
+    } else {
+      cameraController.setLookAtOverride(null);
     }
     cameraController.flyToTarget(target, desiredDistance, flyOptions);
   },
