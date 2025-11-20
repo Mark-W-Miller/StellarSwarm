@@ -1,6 +1,5 @@
 import {
   Color,
-  CanvasTexture,
   CylinderGeometry,
   EdgesGeometry,
   Group,
@@ -9,6 +8,8 @@ import {
   Mesh,
   MeshStandardMaterial,
   SphereGeometry,
+  Texture,
+  TextureLoader,
   Vector3,
   SRGBColorSpace
 } from "three";
@@ -32,25 +33,26 @@ export class HomeStarAsset {
   private highlighted = new Set<string>();
   private lastBrightness = 1;
   private readonly spinAxis = new Vector3(0, 1, 0);
-  private greekTextures: CanvasTexture[];
+  private greekTextures: Texture[];
 
-  private static textureGlyphs = [
-    { name: "alpha", char: "Α" },
-    { name: "beta", char: "Β" },
-    { name: "gamma", char: "Γ" },
-    { name: "delta", char: "Δ" },
-    { name: "epsilon", char: "Ε" },
-    { name: "zeta", char: "Ζ" },
-    { name: "eta", char: "Η" },
-    { name: "theta", char: "Θ" },
-    { name: "iota", char: "Ι" },
-    { name: "kappa", char: "Κ" },
-    { name: "lambda", char: "Λ" },
-    { name: "mu", char: "Μ" },
-    { name: "nu", char: "Ν" },
-    { name: "xi", char: "Ξ" }
+  private static textureLoader = new TextureLoader().setPath("/textures/homeControls/");
+  private static textureNames = [
+    "alpha",
+    "beta",
+    "gamma",
+    "delta",
+    "epsilon",
+    "zeta",
+    "eta",
+    "theta",
+    "iota",
+    "kappa",
+    "lambda",
+    "mu",
+    "nu",
+    "xi"
   ];
-  private static cachedTextures: CanvasTexture[] | null = null;
+  private static cachedTextures: Texture[] | null = null;
 
   constructor(star: StarModel) {
     this.greekTextures = HomeStarAsset.getTextures();
@@ -70,16 +72,15 @@ export class HomeStarAsset {
     const controlGeom = new SphereGeometry(star.radius * 0.2, 16, 16);
     (star.controls ?? []).forEach((ctrl, idx) => {
       const mat = new MeshStandardMaterial({
-        color: new Color(1, 1, 1),
+        color: new Color("#ffffff"),
         emissive: this.baseColor.clone(),
         emissiveIntensity: star.brightness,
-        roughness: 0.9,
-        metalness: 0.05,
-        transparent: true
+        roughness: 0.85,
+        metalness: 0.05
       });
       const tex = this.greekTextures[idx % this.greekTextures.length];
       mat.map = tex;
-      mat.map.needsUpdate = true;
+      mat.needsUpdate = true;
       const ctrlMesh = new Mesh(controlGeom.clone(), mat);
       const ctrlId = ctrl.id ?? `CTRL-${idx + 1}`;
       ctrlMesh.position.set(ctrl.position.x, ctrl.position.y, ctrl.position.z);
@@ -160,10 +161,8 @@ export class HomeStarAsset {
     const mat = mesh.material as MeshStandardMaterial;
     if (!mat || !ctrlId) return;
     const base = this.highlighted.has(ctrlId) ? this.highlightColor : this.baseColor;
-    mat.emissiveIntensity = intensity;
+    mat.emissiveIntensity = intensity * 0.35;
     mat.emissive.copy(base);
-    mat.color.setScalar(1);
-    mat.opacity = Math.max(0.4, intensity);
     mat.needsUpdate = true;
   }
 
@@ -176,31 +175,12 @@ export class HomeStarAsset {
 
   private static getTextures() {
     if (this.cachedTextures) return this.cachedTextures;
-    this.cachedTextures = this.textureGlyphs.map((entry) => {
-      const canvas = document.createElement("canvas");
-      const size = 256;
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        throw new Error("Unable to acquire 2D context for control texture");
-      }
-      ctx.fillStyle = "#0b1122";
-      ctx.fillRect(0, 0, size, size);
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const fontSize = size * 0.65;
-      ctx.font = `bold ${fontSize}px "Times New Roman", "Noto Serif", serif`;
-      ctx.lineJoin = "round";
-      ctx.lineWidth = size * 0.08;
-      ctx.strokeStyle = "#0f172a";
-      ctx.strokeText(entry.char, size / 2, size / 2 + size * 0.05);
-      ctx.fillStyle = "#f8fafc";
-      ctx.fillText(entry.char, size / 2, size / 2 + size * 0.05);
-      const texture = new CanvasTexture(canvas);
-      texture.colorSpace = SRGBColorSpace;
-      texture.needsUpdate = true;
-      return texture;
+    this.cachedTextures = this.textureNames.map((name) => {
+      const tex = this.textureLoader.load(`${name}.png`);
+      tex.colorSpace = SRGBColorSpace;
+      tex.needsUpdate = true;
+      tex.flipY = false;
+      return tex;
     });
     return this.cachedTextures;
   }
