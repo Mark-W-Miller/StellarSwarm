@@ -30,6 +30,16 @@ type FlyState = {
   pitchDuration: number;
 };
 
+type DirectFlyState = {
+  startPos: Vector3;
+  endPos: Vector3;
+  focus: Vector3;
+  elapsed: number;
+  duration: number;
+  orbitTarget: Vector3 | null;
+  lockFocus: boolean;
+};
+
 export class CameraController {
   private camera: PerspectiveCamera;
   private domElement: HTMLElement;
@@ -45,6 +55,7 @@ export class CameraController {
   private ndc = new Vector2();
   private arenaAsset?: ArenaAsset;
   private flyState: FlyState | null = null;
+  private directFly: DirectFlyState | null = null;
   private travelSpeed = 1;
   private lookOverride: Vector3 | null = null;
 
@@ -93,6 +104,7 @@ export class CameraController {
   }
 
   update(delta: number) {
+    if (this.stepDirectFly(delta)) return;
     if (this.stepFly(delta)) return;
     const panDistance = this.settings.panSpeed * delta;
     const forwardMultiplier = this.keyState.has("Shift") ? 10 : 1;
@@ -199,6 +211,30 @@ export class CameraController {
     this.travelSpeed = Math.min(4, Math.max(0.25, multiplier));
   }
 
+  flyDirect(
+    destination: Vector3,
+    options?: {
+      duration?: number;
+      focus?: Vector3;
+      orbitTarget?: Vector3;
+      lockFocus?: boolean;
+    }
+  ) {
+    this.flyState = null;
+    this.directFly = {
+      startPos: this.camera.position.clone(),
+      endPos: destination.clone(),
+      focus: (options?.focus ?? this.target).clone(),
+      elapsed: 0,
+      duration: Math.max(0.01, (options?.duration ?? 1.2) / (this.travelSpeed || 1)),
+      orbitTarget: options?.orbitTarget ? options.orbitTarget.clone() : null,
+      lockFocus: options?.lockFocus ?? false
+    };
+    if (options?.orbitTarget) {
+      this.target.copy(options.orbitTarget);
+    }
+  }
+
   isDragging() {
     return this.pointer.active;
   }
@@ -245,6 +281,7 @@ export class CameraController {
 
   private handlePointerDown(event: PointerEvent) {
     this.flyState = null;
+    this.directFly = null;
     this.lookOverride = null;
     log("CAMERA_MOVE", "Pointer down", { button: event.button });
     if (!(event.target instanceof HTMLElement)) return;
@@ -310,6 +347,7 @@ export class CameraController {
 
   private handleWheel(event: WheelEvent) {
     this.flyState = null;
+    this.directFly = null;
     event.preventDefault();
     const delta = Math.sign(event.deltaY);
     const radiusChange = delta * 10;
@@ -406,5 +444,37 @@ export class CameraController {
   private ease(t: number) {
     const clamped = Math.max(0, Math.min(1, t));
     return 1 - Math.pow(1 - clamped, 3);
+  }
+
+  private stepDirectFly(delta: number) {
+    if (!this.directFly) return false;
+    const state = this.directFly;
+    state.elapsed = Math.min(state.elapsed + delta, state.duration);
+    const t = this.ease(state.elapsed / state.duration);
+    const pos = state.startPos.clone().lerp(state.endPos, t);
+    this.camera.position.copy(pos);
+    const focus = this.lookOverride ?? state.focus;
+    this.camera.lookAt(focus);
+    const done = state.elapsed >= state.duration;
+    if (done) {
+      this.directFly = null;
+      if (state.orbitTarget) {
+        this.target.copy(state.orbitTarget);
+      }
+      if (state.lockFocus) {
+        this.lookOverride = state.focus.clone();
+      } else {
+        this.lookOverride = null;
+      }
+      const offset = new Vector3().subVectors(this.camera.position, this.target);
+      const radius = offset.length();
+      if (radius > 0) {
+        this.radius = Math.min(this.settings.maxRadius, Math.max(this.settings.minRadius, radius));
+        this.yaw = Math.atan2(offset.z, offset.x);
+        const ratio = offset.y / radius;
+        this.pitch = Math.asin(Math.max(-1, Math.min(1, ratio)));
+      }
+    }
+    return true;
   }
 }

@@ -102,6 +102,10 @@ if (homeStarPosition) {
   cameraController.setPosition(new Vector3(arenaModel.half.x, arenaModel.half.y, arenaModel.half.z));
   homeCameraOffset = null;
 }
+function lookBelow(target: Vector3, cameraPos: Vector3, degrees = 5) {
+  const drop = Math.tan((degrees * Math.PI) / 180) * cameraPos.distanceTo(target);
+  return target.clone().add(new Vector3(0, -drop, 0));
+}
 
 const sim = new GameSim();
 const gameManager = new GameManager();
@@ -306,21 +310,16 @@ const sceneInteraction = new SceneInteraction(
   (star) => {
     const target = new Vector3(star.position.x, star.position.y, star.position.z);
     if (star.id === HOME_STAR_ID && homeStarPosition && homeCameraOffset) {
-      const desired = homeCameraOffset.length();
-      if (desired > 0) {
-        const yaw = Math.atan2(homeCameraOffset.z, homeCameraOffset.x);
-        const pitch = Math.asin(Math.max(-1, Math.min(1, homeCameraOffset.y / desired)));
-        cameraController.setLookAtOverride(null);
-        cameraController.flyToTarget(homeStarPosition.clone(), desired, {
-          targetDuration: 0.6,
-          radiusDuration: 1.4,
-          yaw,
-      yawDuration: 1,
-      pitch,
-          pitchDuration: 1
-        });
-        return;
-      }
+      const destination = homeStarPosition.clone().add(homeCameraOffset.clone());
+      const focusPoint = lookBelow(homeStarPosition.clone(), destination);
+      cameraController.setLookAtOverride(null);
+      cameraController.flyDirect(destination, {
+        orbitTarget: homeStarPosition.clone(),
+        focus: focusPoint,
+        duration: 2,
+        lockFocus: false
+      });
+      return;
     }
     const bounding =
       star.orbits && star.orbits.length > 0
@@ -330,28 +329,24 @@ const sceneInteraction = new SceneInteraction(
     const fovRad = (camera.fov * Math.PI) / 180;
     const lateral = safeRadius * 1.1;
     let desiredDistance = Math.max(lateral, lateral / Math.tan(fovRad / 2));
-    const flyOptions: Parameters<typeof cameraController.flyToTarget>[2] = {
-      targetDuration: 0.6,
-      radiusDuration: 1.4
-    };
+    let destination = target.clone().add(new Vector3(0, safeRadius * 0.4, desiredDistance));
+    let focusTarget = target.clone();
     if (homeStarPosition && star.id !== HOME_STAR_ID) {
       const dir = new Vector3().subVectors(target, homeStarPosition);
       const len = dir.length();
       if (len > 1e-4) {
         dir.normalize();
-        flyOptions.yaw = Math.atan2(dir.z, dir.x);
-        flyOptions.yawDuration = 1;
-        flyOptions.pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
-        flyOptions.pitchDuration = 1;
-        desiredDistance = Math.max(desiredDistance, Math.min(len * 0.65, len + safeRadius * 0.5));
-        cameraController.setLookAtOverride(homeStarPosition.clone());
-      } else {
-        cameraController.setLookAtOverride(null);
+        const adjusted = Math.max(desiredDistance, Math.min(len * 0.65, len + safeRadius * 0.5));
+        destination = target.clone().add(dir.clone().multiplyScalar(adjusted));
+        focusTarget = lookBelow(homeStarPosition.clone(), destination);
       }
-    } else {
-      cameraController.setLookAtOverride(null);
     }
-    cameraController.flyToTarget(target, desiredDistance, flyOptions);
+    cameraController.flyDirect(destination, {
+      orbitTarget: target.clone(),
+      focus: focusTarget,
+      duration: 2,
+      lockFocus: homeStarPosition != null && star.id !== HOME_STAR_ID
+    });
   },
   () => cameraController.isDragging()
 );
