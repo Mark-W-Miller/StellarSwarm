@@ -111,7 +111,7 @@ export class StarAsset {
   ) {
     const radiusX = star.radius * scale * 1.3;
     const radiusZ = star.radius * scale * 0.7;
-    const planeY = star.radius * 0.2;
+    const planeY = 0;
     const step = Math.max(star.radius / 2, 1);
     const group = new Group();
     const tubeRadius = Math.max(star.radius * 0.0125, 0.02);

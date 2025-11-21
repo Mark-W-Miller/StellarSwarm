@@ -305,9 +305,17 @@ const sceneInteraction = new SceneInteraction(
     cameraController.setPosition(pos);
   },
   (star) => {
+    if (!star) {
+      arenaAsset.setFocusedStar(null);
+    }
     starInfoPanel.setStar(star ?? null);
   },
   (star) => {
+    if (star.id === HOME_STAR_ID) {
+      arenaAsset.setFocusedStar(null);
+    } else {
+      arenaAsset.setFocusedStar(star.id);
+    }
     const target = new Vector3(star.position.x, star.position.y, star.position.z);
     if (star.id === HOME_STAR_ID && homeStarPosition && homeCameraOffset) {
       const destination = homeStarPosition.clone().add(homeCameraOffset.clone());

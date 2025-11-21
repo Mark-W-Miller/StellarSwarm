@@ -351,18 +351,19 @@ export class CameraController {
     event.preventDefault();
     const delta = Math.sign(event.deltaY);
     const radiusChange = delta * 10;
+    const orbitMin = this.arenaAsset?.getMinOrbitRadiusForTarget(this.target) ?? null;
+    const minAllowed = Math.max(this.settings.minRadius, orbitMin ?? 0);
     let proposed = this.radius + radiusChange;
-    if (proposed < this.settings.minRadius) {
-      // Move target forward along view direction instead of flipping.
-      const forward = new Vector3();
-      this.camera.getWorldDirection(forward);
-      forward.normalize().multiplyScalar(this.settings.minRadius * 0.5);
-      this.target.add(forward);
-      this.radius = this.settings.minRadius;
-      log("CAMERA_MOVE", "Zoom push-forward", {
-        radius: this.radius,
-        target: this.target.toArray()
-      });
+    if (proposed < minAllowed) {
+      if (minAllowed === this.settings.minRadius) {
+        // Move target forward along view direction instead of flipping.
+        const forward = new Vector3();
+        this.camera.getWorldDirection(forward);
+        forward.normalize().multiplyScalar(this.settings.minRadius * 0.5);
+        this.target.add(forward);
+      }
+      this.radius = minAllowed;
+      log("CAMERA_MOVE", "Zoom clamped to orbit", { radius: this.radius, target: this.target.toArray() });
     } else {
       this.radius = Math.min(this.settings.maxRadius, proposed);
     }

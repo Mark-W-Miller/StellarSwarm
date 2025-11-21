@@ -1,4 +1,17 @@
-import { BufferGeometry, Camera, Color, EdgesGeometry, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from "three";
+import {
+  BufferGeometry,
+  Camera,
+  Color,
+  EdgesGeometry,
+  Group,
+  LineBasicMaterial,
+  LineSegments,
+  MathUtils,
+  Mesh,
+  MeshStandardMaterial,
+  Raycaster,
+  Vector3
+} from "three";
 import type { ArenaModel } from "../model/arenaModel";
 import type { StarModel } from "../model/starModel";
 import { HOME_STAR_ID } from "../model/starModel";
@@ -36,6 +49,8 @@ type StarInstance = {
     minorAxis: number;
     planeY: number;
   }[];
+  baseScale: Vector3;
+  scaleTarget: number;
 };
 
 export class ArenaAsset {
@@ -50,6 +65,20 @@ export class ArenaAsset {
   private spinRateFactor = 1;
   private spinLookup = new Map<string, number>();
   private homeControlUnsub?: () => void;
+  private focusedStarId: string | null = null;
+  private readonly focusScale = 0.7;
+  private readonly selectionBaseStyle = {
+    color: "#ffffff",
+    emissive: "#ffffff",
+    emissiveIntensity: 0.3,
+    opacity: 0.35
+  };
+  private readonly selectionFocusStyle = {
+    color: "#60a5fa",
+    emissive: "#1e3a8a",
+    emissiveIntensity: 0.18,
+    opacity: 0.25
+  };
 
   constructor(private model: ArenaModel, private camera: Camera) {
     this.group = new Group();
@@ -111,12 +140,22 @@ export class ArenaAsset {
     this.group.add(subwarp);
     const planets = this.buildPlanets(star);
     planets.forEach((p) => this.group.add(p.group));
-    this.stars.push({ model: star, mesh, subwarp, planets, systemSpeed, homeAsset });
+    this.stars.push({
+      model: star,
+      mesh,
+      subwarp,
+      planets,
+      systemSpeed,
+      homeAsset,
+      baseScale: mesh.scale.clone(),
+      scaleTarget: 1
+    });
     this.starMap.set(mesh, star);
     this.spinLookup.set(star.id, this.starAsset.getSpinSpeed(star));
   }
 
   resetStars(nextStars: StarModel[]) {
+    this.clearFocusedStar();
     this.stars.forEach((s) => {
       this.group.remove(s.mesh);
       if (s.selection) this.group.remove(s.selection);
@@ -161,6 +200,7 @@ export class ArenaAsset {
       } else {
         this.starAsset.tick(starModel, mesh, intensity);
       }
+      this.updateStarScale(instance);
       mesh.rotation.y += systemSpeed;
       if (subwarp) {
         subwarp.rotation.y = mesh.rotation.y;
@@ -236,6 +276,7 @@ export class ArenaAsset {
     const target = this.stars.find((s) => s.model.id === starId);
     if (!target || target.selection) return;
     const selection = this.starAsset.createSelectionMesh(target.model, this.subwarpScale);
+    this.applySelectionTint(selection, this.focusedStarId === starId);
     target.selection = selection;
     this.group.add(selection);
   }
@@ -243,6 +284,9 @@ export class ArenaAsset {
   removeSelection(starId: string) {
     const target = this.stars.find((s) => s.model.id === starId);
     if (!target || !target.selection) return;
+    if (this.focusedStarId === starId) {
+      this.clearFocusedStar();
+    }
     this.group.remove(target.selection);
     target.selection = undefined;
   }
@@ -303,6 +347,81 @@ export class ArenaAsset {
     });
   }
 
+  getMinOrbitRadiusForTarget(target: Vector3) {
+    if (this.stars.length === 0) return null;
+    let closest: StarInstance | null = null;
+    let closestDist = Infinity;
+    for (const entry of this.stars) {
+      const starPos = new Vector3(entry.model.position.x, entry.model.position.y, entry.model.position.z);
+      const dist = starPos.distanceTo(target);
+      if (dist < closestDist) {
+        closest = entry;
+        closestDist = dist;
+      }
+    }
+    if (!closest) return null;
+    const model = closest.model;
+    const orbits = model.orbits ?? [];
+    let orbitExtent = model.radius * this.subwarpScale * 1.3;
+    if (orbits.length > 0) {
+      const radii = orbits.map((o) => o.radius);
+      orbitExtent = Math.max(...radii);
+    }
+    const margin = Math.max(model.radius * 0.25, orbitExtent * 0.05);
+    return Math.max(orbitExtent + model.radius, model.radius * 1.5) + margin;
+  }
+
+  setFocusedStar(starId: string | null) {
+    if (this.focusedStarId === starId) return;
+    const target = starId ? this.stars.find((s) => s.model.id === starId) : undefined;
+    if (!target || target.model.id === HOME_STAR_ID) {
+      this.clearFocusedStar();
+      return;
+    }
+    this.clearFocusedStar();
+    this.focusedStarId = starId;
+    target.scaleTarget = this.focusScale;
+    if (target.selection) {
+      this.applySelectionTint(target.selection, true);
+    }
+  }
+
+  private clearFocusedStar() {
+    if (!this.focusedStarId) return;
+    const previous = this.stars.find((s) => s.model.id === this.focusedStarId);
+    if (previous && previous.model.id !== HOME_STAR_ID) {
+      previous.scaleTarget = 1;
+      if (previous.selection) {
+        this.applySelectionTint(previous.selection, false);
+      }
+    }
+    this.focusedStarId = null;
+  }
+
+  private applySelectionTint(selection: Mesh, focused: boolean) {
+    const mat = selection.material as MeshStandardMaterial;
+    if (!mat) return;
+    const style = focused ? this.selectionFocusStyle : this.selectionBaseStyle;
+    mat.color.set(style.color);
+    mat.emissive.set(style.emissive);
+    mat.emissiveIntensity = style.emissiveIntensity;
+    mat.opacity = style.opacity;
+    mat.transparent = true;
+    mat.needsUpdate = true;
+  }
+
+  private updateStarScale(instance: StarInstance) {
+    const { mesh, baseScale, scaleTarget } = instance;
+    if (!baseScale.x || !baseScale.y || !baseScale.z) return;
+    const isFocused = this.focusedStarId === instance.model.id;
+    const distance = mesh.position.distanceTo(this.camera.position);
+    const distanceLimiter = isFocused ? MathUtils.clamp(distance / 450, 0.35, 1) : 1;
+    const targetFactor = Math.min(scaleTarget, distanceLimiter);
+    const currentFactor = mesh.scale.x / baseScale.x;
+    const nextFactor = MathUtils.lerp(currentFactor, targetFactor, 0.12);
+    mesh.scale.set(baseScale.x * nextFactor, baseScale.y * nextFactor, baseScale.z * nextFactor);
+  }
+
   private buildPlanets(star: StarModel) {
     const planets: PlanetInstance[] = [];
     const halfBounds = Math.sqrt(
@@ -328,7 +447,7 @@ export class ArenaAsset {
       const angularSpeed = orbit.planet.angularSpeed * speedScale;
       const majorAxis = orbit.radius * 0.8;
       const minorAxis = majorAxis * (0.7 / 1.3); // match subwarp flatten ratio
-      const planeY = star.radius * 0.2;
+      const planeY = 0;
       const planetEntry: PlanetInstance = {
         orbitRadius: orbit.radius,
         mesh: planetMesh,
