@@ -189,23 +189,40 @@ export class ArenaAsset {
   }
 
   tick() {
+    // Per-frame update for all star instances and their children.
     this.stars.forEach((instance) => {
       const { model: starModel, mesh, subwarp, planets, systemSpeed, homeAsset } = instance;
+
+      // Distance-based attenuation used for non-home brightness.
       const dist = mesh.position.distanceTo(this.camera.position);
       const intensity = Math.max(0.3, 1 / Math.max(1, dist));
       const level = Math.max(0, Math.min(1, starModel.brightness));
+
       if (homeAsset) {
+        // Home star: update glow, spin control shell, and publish energy/charge state.
         homeAsset.updateBrightness(level);
         homeAsset.rotateControlShell(-systemSpeed * 4);
+        const energy = homeAsset.getEnergySnapshot();
+        homeControlStore.setEnergy(energy.level, energy.steps);
+        homeControlStore.setControlCharges(homeAsset.getControlCharges());
       } else {
+        // Non-home stars: update emissive/color based on attenuation.
         this.starAsset.tick(starModel, mesh, intensity);
       }
+
+      // Focus scaling (shrinking when close/targeted).
       this.updateStarScale(instance);
+
+      // Spin the star/system.
       mesh.rotation.y += systemSpeed;
+
+      // Keep subwarp/grid aligned to star rotation and brightness.
       if (subwarp) {
         subwarp.rotation.y = mesh.rotation.y;
         this.applySubwarpBrightness(subwarp, starModel.brightness);
       }
+
+      // Advance planets along their orbits and inherit system rotation.
       if (planets && planets.length > 0) {
         planets.forEach((p) => {
           // Planet orbits advance at a steady rate; then inherit the system (star) rotation.
@@ -214,6 +231,8 @@ export class ArenaAsset {
           const z = p.minorAxis * Math.sin(p.angle);
           const pos = new Vector3(x, p.planeY, z).applyAxisAngle(new Vector3(0, 1, 0), mesh.rotation.y);
           p.mesh.position.copy(pos);
+
+          // Apply brightness to planet material.
           const pm = p.mesh.material as MeshStandardMaterial;
           const baseColor = (p.mesh.userData.baseColor as Color) ?? pm.color.clone();
           const level = Math.max(0, Math.min(1, starModel.brightness));
@@ -361,6 +380,10 @@ export class ArenaAsset {
     }
     if (!closest) return null;
     const model = closest.model;
+    if (model.id === HOME_STAR_ID) {
+      // Allow much closer inspection of the home star; ignore orbit span.
+      return Math.max(model.radius * 1.2, model.radius + 5);
+    }
     const orbits = model.orbits ?? [];
     let orbitExtent = model.radius * this.subwarpScale * 1.3;
     if (orbits.length > 0) {

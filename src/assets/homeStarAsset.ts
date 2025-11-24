@@ -1,5 +1,6 @@
 import {
   Color,
+  DoubleSide,
   CylinderGeometry,
   EdgesGeometry,
   Group,
@@ -14,13 +15,14 @@ import {
   SRGBColorSpace
 } from "three";
 import { HOME_STAR_ID } from "../model/starModel";
-import type { StarModel } from "../model/starModel";
+import type { HomeControlModel, StarModel } from "../model/starModel";
 
 type ControlMesh = {
   mesh: Mesh;
   id: string;
   axis: Vector3;
   spoke?: Mesh;
+  fill?: Mesh;
 };
 
 export class HomeStarAsset {
@@ -29,12 +31,18 @@ export class HomeStarAsset {
   private controls: ControlMesh[] = [];
   private baseColor = new Color("#14532d");
   private highlightColor = new Color("#facc15");
-  private centerMaterial: MeshStandardMaterial;
+  private centerMaterial!: MeshStandardMaterial;
   private readonly centerControlId = "CTRL-CENTER";
   private highlighted = new Set<string>();
   private lastBrightness = 1;
   private readonly spinAxis = new Vector3(0, 1, 0);
   private greekTextures: Map<string, Texture>;
+  private energyLevel = 0;
+  private readonly energySteps: number;
+  private readonly controlFillSteps: number;
+  private readonly controlRadius: number;
+  private readonly fillColor = new Color("#14532d");
+  private controlCharge = new Map<string, number>();
 
   private static textureLoader = new TextureLoader().setPath("/textures/homeControls/");
   private static textureNames = [
@@ -55,59 +63,31 @@ export class HomeStarAsset {
   ];
   private static cachedTextures: Map<string, Texture> | null = null;
 
+  /**
+   * Build the home star visuals and its control spheres.
+   * - Samples the center sphere geometry to decide how many discrete energy steps we expose.
+   * - Sizes control spheres and adds a nested fill sphere that scales up as the control charges.
+   * - Applies the Greek texture set, edge outlines, and spoke lines back to the core.
+   */
   constructor(star: StarModel) {
     this.greekTextures = HomeStarAsset.getTextures();
-    const geom = new SphereGeometry(star.radius * 0.3, 24, 24);
-    this.centerMaterial = new MeshStandardMaterial({
-      color: this.baseColor.clone(),
-      emissive: this.baseColor.clone(),
-      emissiveIntensity: star.brightness,
-      roughness: 0.95,
-      metalness: 0.02
-    });
-    this.mesh = new Mesh(geom, this.centerMaterial);
-    this.mesh.userData.controlId = this.centerControlId;
-    const edges = new LineSegments(new EdgesGeometry(geom), new LineBasicMaterial({ color: new Color("#000000"), transparent: true, opacity: 0.9 }));
-    this.mesh.add(edges);
-    const spokesGroup = new Group();
-    const spokeMat = new LineBasicMaterial({ color: new Color("#1f2937"), transparent: true, opacity: 0.8 });
+    const centerGeom = new SphereGeometry(star.radius * 0.3, 24, 24);
+    this.energySteps = Math.max(1, (centerGeom.index?.count ?? 0) / 3);
+    this.controlRadius = star.radius * 0.2;
+    this.controlFillSteps = Math.max(1, Math.floor(this.energySteps));
+    this.mesh = this.buildCenter(star, centerGeom);
 
-
-    const controlGeom = new SphereGeometry(star.radius * 0.2, 16, 16);
+    const controlGeom = new SphereGeometry(this.controlRadius, 16, 16);
     (star.controls ?? []).forEach((ctrl, idx) => {
-      const mat = new MeshStandardMaterial({
-        color: new Color("#ffffff"),
-        emissive: this.baseColor.clone(),
-        emissiveIntensity: star.brightness,
-        roughness: 0.85,
-        metalness: 0.05
-      });
-      const texName = ctrl.texture ?? HomeStarAsset.textureNames[idx % HomeStarAsset.textureNames.length];
-      const tex = this.greekTextures.get(texName);
-      if (tex) {
-        mat.map = tex;
-        mat.needsUpdate = true;
-      }
-      const ctrlMesh = new Mesh(controlGeom.clone(), mat);
-      const ctrlId = ctrl.id ?? `CTRL-${idx + 1}`;
-      ctrlMesh.position.set(ctrl.position.x, ctrl.position.y, ctrl.position.z);
-      ctrlMesh.userData.controlId = ctrlId;
-      const ctrlEdges = new LineSegments(new EdgesGeometry(controlGeom), new LineBasicMaterial({ color: new Color("#ffffff"), transparent: true, opacity: 0.9 }));
-      ctrlMesh.add(ctrlEdges);
-      this.mesh.add(ctrlMesh);
-      const length = ctrlMesh.position.length();
-      const dir = ctrlMesh.position.clone().normalize();
-      const lineGeom = new CylinderGeometry(star.radius * 0.02, star.radius * 0.02, length, 8, 1, true);
-      lineGeom.translate(0, length / 2, 0);
-      const lineMat = new MeshStandardMaterial({ color: new Color("#1f2937"), roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.7 });
-      const lineMesh = new Mesh(lineGeom, lineMat);
-      lineMesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir);
-      this.mesh.add(lineMesh);
-      this.controls.push({ mesh: ctrlMesh, id: ctrlId, axis: this.spinAxis.clone(), spoke: lineMesh });
-
+      const control = this.buildControl(ctrl, idx, star, controlGeom);
+      this.mesh.add(control.mesh);
+      if (control.spoke) this.mesh.add(control.spoke);
+      this.controls.push(control);
+      this.controlCharge.set(control.id, 0);
     });
   }
 
+  /** Build and return the orbit geometry around the home star (rings and spokes). */
   buildOrbitGeometry(
     star: StarModel,
     scale: number,
@@ -119,6 +99,7 @@ export class HomeStarAsset {
     return this.orbitGroup;
   }
 
+  /** Refresh brightness on the core, controls, and orbit visuals from star state. */
   updateBrightness(level: number) {
     const clamped = Math.max(0, Math.min(1, level));
     this.lastBrightness = clamped;
@@ -151,6 +132,7 @@ export class HomeStarAsset {
     ];
   }
 
+  /** Toggle a single control highlight and reset its charge if turning off. */
   setControlHighlight(controlId: string, active: boolean) {
     const ctrl = this.controls.find((c) => c.id === controlId);
     if (!ctrl) return;
@@ -158,16 +140,21 @@ export class HomeStarAsset {
       this.highlighted.add(controlId);
     } else {
       this.highlighted.delete(controlId);
+      this.controlCharge.set(controlId, 0);
     }
     this.applyControlMaterial(ctrl.mesh, this.lastBrightness);
   }
 
+  /** Sync control highlights from an external list of states. */
   syncControlHighlights(states: Array<{ id: string; clicked: boolean }>) {
     const lookup = new Map(states.map((s) => [s.id, s.clicked]));
     this.controls.forEach((ctrl) => {
       const active = lookup.get(ctrl.id) ?? false;
       if (active) this.highlighted.add(ctrl.id);
-      else this.highlighted.delete(ctrl.id);
+      else {
+        this.highlighted.delete(ctrl.id);
+        this.controlCharge.set(ctrl.id, 0);
+      }
       this.applyControlMaterial(ctrl.mesh, this.lastBrightness);
     });
   }
@@ -180,10 +167,16 @@ export class HomeStarAsset {
     mat.emissiveIntensity = intensity * 0.35;
     mat.emissive.copy(base);
     mat.needsUpdate = true;
+    const ctrl = this.controls.find((c) => c.id === ctrlId);
+    if (ctrl) {
+      const charge = this.controlCharge.get(ctrlId) ?? 0;
+      this.updateControlFill(ctrl, this.highlighted.has(ctrlId) ? charge : 0);
+    }
   }
 
   rotateControlShell(angle: number) {
     if (angle === 0) return;
+    this.regenerateEnergy(Math.abs(angle));
     this.controls.forEach((ctrl) => {
       const sign = ctrl.mesh.position.y >= 0 ? 1 : -1;
       ctrl.mesh.rotateOnAxis(ctrl.axis, angle * sign);
@@ -191,6 +184,126 @@ export class HomeStarAsset {
         ctrl.spoke.rotateOnAxis(ctrl.axis, angle * sign);
       }
     });
+  }
+
+  regenerateEnergy(angleDelta: number) {
+    const delta = Math.abs(angleDelta) / (Math.PI * 2); // fraction of a full rotation
+    let maxLevel = 0;
+    this.controls.forEach((ctrl) => {
+      const active = this.highlighted.has(ctrl.id);
+      const current = this.controlCharge.get(ctrl.id) ?? 0;
+      const next = active ? Math.min(1, current + delta) : 0;
+      const quantized = Math.floor(next * this.controlFillSteps) / this.controlFillSteps;
+      this.controlCharge.set(ctrl.id, quantized);
+      maxLevel = Math.max(maxLevel, quantized);
+      this.updateControlFill(ctrl, quantized);
+    });
+    const quantizedEnergy = Math.floor(maxLevel * this.energySteps) / this.energySteps;
+    if (quantizedEnergy !== this.energyLevel) {
+      this.energyLevel = quantizedEnergy;
+    }
+  }
+
+  getEnergySnapshot() {
+    return { level: this.energyLevel, steps: this.energySteps };
+  }
+
+  /** Expose per-control charge levels for UI sync. */
+  getControlCharges() {
+    return Array.from(this.controlCharge.entries()).map(([id, level]) => ({ id, level }));
+  }
+
+  /** Update visual fill of a control based on quantized charge. */
+  private updateControlFill(ctrl: ControlMesh, level: number) {
+    if (!ctrl.fill) return;
+    const steps = this.controlFillSteps;
+    const quantized = Math.floor(Math.max(0, Math.min(1, level)) * steps) / steps;
+    ctrl.fill.visible = quantized > 0;
+    const radius = (ctrl.fill.userData.fillRadius as number | undefined) ?? this.controlRadius * 0.82;
+    const heightScale = Math.max(0.01, quantized);
+    // Grow upward: keep X/Z full, scale Y, and offset so the base stays anchored.
+    ctrl.fill.scale.set(1, heightScale, 1);
+    const yOffset = -radius + radius * heightScale;
+    ctrl.fill.position.set(0, yOffset, 0);
+    const mat = ctrl.fill.material as MeshStandardMaterial;
+    mat.opacity = 0.4 + quantized * 0.6;
+    mat.emissiveIntensity = 0.3 + quantized * 0.7;
+    mat.needsUpdate = true;
+  }
+
+  /** Build the core mesh with outline and material seeded from the star. */
+  private buildCenter(star: StarModel, geom: SphereGeometry) {
+    this.centerMaterial = new MeshStandardMaterial({
+      color: this.baseColor.clone(),
+      emissive: this.baseColor.clone(),
+      emissiveIntensity: star.brightness,
+      roughness: 0.95,
+      metalness: 0.02
+    });
+    const mesh = new Mesh(geom, this.centerMaterial);
+    mesh.userData.controlId = this.centerControlId;
+    const edges = new LineSegments(new EdgesGeometry(geom), new LineBasicMaterial({ color: new Color("#000000"), transparent: true, opacity: 0.9 }));
+    mesh.add(edges);
+    return mesh;
+  }
+
+  /** Build a single control sphere with texture, outline, fill sphere, and spoke line. */
+  private buildControl(
+    ctrl: HomeControlModel,
+    idx: number,
+    star: StarModel,
+    controlGeom: SphereGeometry
+  ): ControlMesh {
+    // Material for the physical control shell (texture gets applied below)
+    const mat = new MeshStandardMaterial({
+      color: new Color("#ffffff"),
+      emissive: this.baseColor.clone(),
+      emissiveIntensity: star.brightness,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+    const texName = ctrl.texture ?? HomeStarAsset.textureNames[idx % HomeStarAsset.textureNames.length];
+    const tex = this.greekTextures.get(texName);
+    if (tex) {
+      mat.map = tex;
+      mat.needsUpdate = true;
+    }
+    // Control sphere itself
+    const ctrlMesh = new Mesh(controlGeom.clone(), mat);
+    const ctrlId = ctrl.id ?? `CTRL-${idx + 1}`;
+    ctrlMesh.position.set(ctrl.position.x, ctrl.position.y, ctrl.position.z);
+    ctrlMesh.userData.controlId = ctrlId;
+    // Outline to keep silhouette crisp
+    const ctrlEdges = new LineSegments(new EdgesGeometry(controlGeom), new LineBasicMaterial({ color: new Color("#ffffff"), transparent: true, opacity: 0.9 }));
+    ctrlMesh.add(ctrlEdges);
+
+    // Inner fill sphere that scales up as charge accumulates
+    const fillGeom = new SphereGeometry(this.controlRadius * 0.82, 18, 18);
+    const fillMat = new MeshStandardMaterial({
+      color: this.fillColor.clone(),
+      emissive: this.fillColor.clone(),
+      emissiveIntensity: 0.6,
+      transparent: true,
+      opacity: 0.65,
+      roughness: 0.35,
+      metalness: 0.05,
+      side: DoubleSide
+    });
+    const fillMesh = new Mesh(fillGeom, fillMat);
+    fillMesh.visible = false;
+    fillMesh.userData.fillRadius = this.controlRadius * 0.82;
+    ctrlMesh.add(fillMesh);
+
+    // Spoke back to the core for visual linkage
+    const length = ctrlMesh.position.length();
+    const dir = ctrlMesh.position.clone().normalize();
+    const lineGeom = new CylinderGeometry(star.radius * 0.02, star.radius * 0.02, length, 8, 1, true);
+    lineGeom.translate(0, length / 2, 0);
+    const lineMat = new MeshStandardMaterial({ color: new Color("#1f2937"), roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.7 });
+    const lineMesh = new Mesh(lineGeom, lineMat);
+    lineMesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir);
+
+    return { mesh: ctrlMesh, id: ctrlId, axis: this.spinAxis.clone(), spoke: lineMesh, fill: fillMesh };
   }
 
   private static getTextures() {

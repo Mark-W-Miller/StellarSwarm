@@ -26,6 +26,8 @@ export class HomeInfoOverlay {
   private controls: ControlState[] = [];
   private selected: string | null = null;
   private centerActive = false;
+  private energy = { level: 0, steps: 1 };
+  private charges: Record<string, number> = {};
 
   constructor() {
     this.state = this.load();
@@ -84,8 +86,10 @@ export class HomeInfoOverlay {
     this.enableDrag();
     this.enableResize();
 
-    this.unsubscribe = homeControlStore.subscribe(({ controls, centerActive }) => {
+    this.unsubscribe = homeControlStore.subscribe(({ controls, centerActive, energy, charges }) => {
       this.centerActive = centerActive;
+      this.energy = energy;
+      this.charges = charges;
       this.render(controls);
     });
   }
@@ -122,10 +126,19 @@ export class HomeInfoOverlay {
     }
     const clicked = this.controls.filter((c) => c.clicked).length;
     const starId = this.controls[0]?.starId ?? "S-1";
+    const energyPct = Math.round((this.energy.level ?? 0) * 100);
+    const stepPercent = 100 / Math.max(1, this.energy.steps);
     this.summary.innerHTML = `
       <div><strong>Home Star:</strong> ${starId}</div>
       <div><strong>Controls:</strong> ${this.controls.length}</div>
       <div><strong>Activated:</strong> ${clicked}</div>
+      <div class="home-overlay__energy">
+        <div class="home-overlay__energy-bar">
+          <div class="home-overlay__energy-fill" style="width:${energyPct}%"></div>
+          <div class="home-overlay__energy-steps" style="background-size:${stepPercent}% 100%"></div>
+        </div>
+        <span class="home-overlay__energy-value">${energyPct}%</span>
+      </div>
     `;
     this.centerButton.classList.toggle("active", this.centerActive);
     this.renderGrid();
@@ -147,7 +160,15 @@ export class HomeInfoOverlay {
       cell.className = "home-overlay__cell";
       if (ctrl.clicked) cell.classList.add("clicked");
       if (ctrl.id === this.selected) cell.classList.add("selected");
-      cell.textContent = ctrl.symbol ?? ctrl.id.replace(/^CTRL-/, "");
+      const charge = ctrl.clicked ? this.charges[ctrl.id] ?? 0 : 0;
+      const chargePct = Math.round(charge * 100);
+      const label = ctrl.symbol ?? ctrl.id.replace(/^CTRL-/, "");
+      cell.style.setProperty("--charge-level", `${charge}`);
+      cell.style.setProperty("--charge-height", `${chargePct}%`);
+      cell.innerHTML = `
+        <span class="home-overlay__cell-fill"></span>
+        <span class="home-overlay__cell-label">${label}</span>
+      `;
       cell.title = `${ctrl.name ?? ctrl.id} (${ctrl.id})`;
       cell.addEventListener("click", () => {
         this.selected = ctrl.id;

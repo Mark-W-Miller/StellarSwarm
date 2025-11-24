@@ -232,6 +232,50 @@ body {
   gap: 12px;
   font-size: 12px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.home-overlay__energy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-overlay__energy-bar {
+  position: relative;
+  width: 120px;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #0f172a;
+  border: 1px solid #14532d;
+}
+
+.home-overlay__energy-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #14532d 0%, #16a34a 100%);
+}
+
+.home-overlay__energy-steps {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.08) 1px,
+    transparent 1px,
+    transparent 8px
+  );
+  mix-blend-mode: screen;
+}
+
+.home-overlay__energy-value {
+  color: #a7f3d0;
+  font-variant-numeric: tabular-nums;
 }
 
 .home-overlay__grid {
@@ -272,6 +316,10 @@ body {
   font-size: 12px;
   text-align: center;
   transition: background 0.2s, color 0.2s;
+  position: relative;
+  overflow: hidden;
+  --charge-level: 0;
+  --charge-height: 0%;
 }
 
 .home-overlay__cell.clicked {
@@ -282,6 +330,24 @@ body {
 
 .home-overlay__cell.selected {
   box-shadow: 0 0 0 2px #3b82f6;
+}
+
+.home-overlay__cell-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--charge-height);
+  background: linear-gradient(180deg, rgba(20, 83, 45, 0.25) 0%, rgba(20, 83, 45, 0.9) 75%, rgba(34, 197, 94, 0.95) 100%);
+  pointer-events: none;
+  display: block;
+  opacity: calc(0.2 + var(--charge-level) * 0.8);
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+
+.home-overlay__cell-label {
+  position: relative;
+  z-index: 1;
 }
 
 .home-overlay__details {
