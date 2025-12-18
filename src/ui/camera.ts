@@ -85,6 +85,7 @@ export class CameraController {
     this.handleKeyUp = this.handleKeyUp.bind(this);
 
     this.domElement.addEventListener("pointerdown", this.handlePointerDown);
+    this.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("pointermove", this.handlePointerMove);
     window.addEventListener("pointerup", this.handlePointerUp);
     this.domElement.addEventListener("wheel", this.handleWheel, { passive: false });
@@ -292,7 +293,7 @@ export class CameraController {
     }
     if (event.target !== this.domElement && !this.domElement.contains(event.target)) return;
     if (this.hitSceneObject(event)) return;
-    const mode = event.shiftKey && event.button === 0 ? "pan" : "orbit";
+    const mode = event.button === 2 || (event.shiftKey && event.button === 0) ? "pan" : "orbit";
     this.pointer = {
       active: true,
       lastX: event.clientX,

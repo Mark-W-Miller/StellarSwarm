@@ -1,0 +1,134 @@
+// Vracken Gate – Geometric Model (Gate Only)
+
+// ------------------------
+// Coordinate system & scene
+// ------------------------
+scene.clear()
+// X: right, Y: up, Z: forward
+// Ground plane: Y = 0 (XZ plane)
+
+camera.position = (0, 8, 20)
+camera.look_at  = (0, 0, 0)
+camera.fov_deg  = 45
+
+// ------------------------
+// Global parameters
+// ------------------------
+NUM_COLUMNS         = 7
+
+BASE_RADIUS         = 10.0      // base plate radius
+BASE_THICKNESS      = 0.5
+
+COLUMN_RADIUS       = 0.5
+COLUMN_HEIGHT       = 5.0
+
+COLUMN_RING_RADIUS  = 0.8 * BASE_RADIUS   // radius for column centers
+
+RING_THICKNESS      = 0.3                 // top ring tube thickness
+
+SPOKE_RADIUS        = 0.2
+
+WHITE_BALL_RADIUS   = 1.0
+COLOR_BALL_RADIUS   = 0.7 * WHITE_BALL_RADIUS
+
+COLUMN_COLORS = [RED, ORANGE, YELLOW, GREEN, BLUE, INDIGO, VIOLET]
+
+// ------------------------
+// 1) Base plate
+// ------------------------
+base_plate = create_cylinder(
+    radius = BASE_RADIUS,
+    height = BASE_THICKNESS
+)
+base_plate.position = (0, -BASE_THICKNESS / 2, 0) // top at Y = 0
+base_plate.material = metal_dark
+scene.add(base_plate)
+
+// ------------------------
+// 2) Columns (even circle)
+// ------------------------
+for i in 0 .. NUM_COLUMNS-1:
+    angle = (2 * PI * i) / NUM_COLUMNS    // radians
+    col_x = COLUMN_RING_RADIUS * cos(angle)
+    col_z = COLUMN_RING_RADIUS * sin(angle)
+    col_y = COLUMN_HEIGHT / 2             // standing on base at Y = 0
+
+    column[i] = create_cylinder(
+        radius = COLUMN_RADIUS,
+        height = COLUMN_HEIGHT
+    )
+    column[i].position = (col_x, col_y, col_z)
+    column[i].material = metal_dark
+    scene.add(column[i])
+
+// ------------------------
+// 3) Top wheel (ring parallel to ground)
+// ------------------------
+ring_center_y = COLUMN_HEIGHT             // same height as column tops
+
+// Torus lying in XZ plane (normal along +Y)
+top_ring = create_torus(
+    major_radius = COLUMN_RING_RADIUS,    // passes through column tops
+    minor_radius = RING_THICKNESS,
+    normal       = (0, 1, 0)
+)
+top_ring.position = (0, ring_center_y, 0)
+top_ring.material = metal_dark
+scene.add(top_ring)
+
+// ------------------------
+// 4) Spokes (center -> column tops)
+// ------------------------
+center = (0.0, ring_center_y, 0.0)
+
+for i in 0 .. NUM_COLUMNS-1:
+    angle = (2 * PI * i) / NUM_COLUMNS
+    col_top_x = COLUMN_RING_RADIUS * cos(angle)
+    col_top_z = COLUMN_RING_RADIUS * sin(angle)
+    col_top_y = ring_center_y
+
+    spoke[i] = create_cylinder_along_segment(
+        start  = center,
+        end    = (col_top_x, col_top_y, col_top_z),
+        radius = SPOKE_RADIUS
+    )
+    spoke[i].material = metal_dark
+    scene.add(spoke[i])
+
+// ------------------------
+// 5) Central white ball
+// ------------------------
+white_ball = create_sphere(
+    radius = WHITE_BALL_RADIUS
+)
+white_ball.position           = center
+white_ball.emissive_color     = WHITE
+white_ball.emissive_intensity = 1.0
+scene.add(white_ball)
+
+// ------------------------
+// 6) Colored balls on column tops
+// ------------------------
+for i in 0 .. NUM_COLUMNS-1:
+    angle = (2 * PI * i) / NUM_COLUMNS
+    col_top_x = COLUMN_RING_RADIUS * cos(angle)
+    col_top_z = COLUMN_RING_RADIUS * sin(angle)
+    col_top_y = ring_center_y
+
+    color_ball[i] = create_sphere(
+        radius = COLOR_BALL_RADIUS
+    )
+    color_ball[i].position = (
+        col_top_x,
+        col_top_y + COLOR_BALL_RADIUS,
+        col_top_z
+    )
+
+    color_ball[i].emissive_color     = COLUMN_COLORS[i]
+    color_ball[i].emissive_intensity = 0.7
+    scene.add(color_ball[i])
+
+// ------------------------
+// 7) Lighting / environment
+// ------------------------
+// No other geometry. Optional: low ambient light; main light from emissive balls.

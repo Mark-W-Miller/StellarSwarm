@@ -12,7 +12,9 @@ npm install
 ```bash
 npm run dev
 ```
-The console prints a local URL; open it in a browser to view the live scene.
+The console prints a local URL; open it in a browser and visit:
+- `http://localhost:5173/stellar-swarm` for the original starfield
+- `http://localhost:5173/dim-gate` for the new Dimension Gate sandbox
 
 ## Build for production
 ```bash
