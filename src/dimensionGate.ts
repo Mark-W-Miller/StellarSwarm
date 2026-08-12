@@ -81,7 +81,7 @@ type GateParams = {
 };
 
 const defaultParams: GateParams = {
-  numColumns: 7,
+  numColumns: 8,
   baseRadius: 10,
   baseThickness: 0.5,
   columnStartAngle: 0,
@@ -92,7 +92,16 @@ const defaultParams: GateParams = {
   spokeRadius: 0.2,
   whiteBallRadius: 1,
   colorBallRadius: 0.7,
-  columnColors: ["#ff4d4f", "#ff8c42", "#ffd147", "#22c55e", "#3b82f6", "#6366f1", "#a855f7"]
+  columnColors: [
+    "#ff4d4f",
+    "#ff8c42",
+    "#ffd147",
+    "#22c55e",
+    "#3b82f6",
+    "#6366f1",
+    "#a855f7",
+    "#ec4899"
+  ]
 };
 
 function createPieBaseFromColumns(
@@ -265,11 +274,10 @@ function buildGate() {
   const { columns, tops } = createColumns(params, columnMaterial);
   const rim = createTopRim(tops, params, beamMaterial);
   const spokes = createBeams(tops, params, beamMaterial);
-  const center = createCenterBall(params, emissiveWhite);
   const colorBalls = createColorBalls(tops, params);
   const base = createPieBaseFromColumns(tops, params, metalMaterial, silverOutline);
 
-  group.add(base, rim, center, ...columns, ...spokes, ...colorBalls);
+  group.add(base, rim, ...columns, ...spokes, ...colorBalls);
   return group;
 }
 
@@ -304,6 +312,7 @@ export function startDimensionGate() {
 
   const axisLength = 48;
   const axisGroup = createAxisArrows(axisLength);
+  axisGroup.visible = false;
   scene.add(axisGroup);
 
   createDimGateUI("/dim-gate");
